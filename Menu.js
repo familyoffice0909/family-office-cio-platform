@@ -30,7 +30,17 @@ function onOpen() {
     .addItem('Seed Known CDRs', 'foSeedKnownCDRs');
 
   const reportsMenu = ui.createMenu('Reports')
+    .addItem('Run Executive Dashboard', 'foRunExecutiveDashboardEngine')
+    .addItem('Executive Dashboard Smoke Test', 'foRunExecutiveDashboardSmokeTest')
+    .addSeparator()
+    .addItem('Run Executive CIO Report', 'foRunExecutiveReportEngine')
+    .addItem('Executive Report Smoke Test', 'foRunExecutiveReportSmokeTest')
+    .addSeparator()
     .addItem('Archive Smoke Test Report', 'foArchiveSmokeTestReport');
+
+  const orchestratorMenu = ui.createMenu('Orchestrator')
+    .addItem('Run Autonomous CIO Orchestrator', 'foRunAutonomousCioOrchestrator')
+    .addItem('Autonomous CIO Smoke Test', 'foRunAutonomousCioOrchestratorSmokeTest');
 
   const adminMenu = ui.createMenu('Administration')
     .addItem('Show Platform Version', 'foShowVersion')
@@ -44,6 +54,7 @@ function onOpen() {
     .addSubMenu(platformMenu)
     .addSubMenu(investmentsMenu)
     .addSubMenu(reportsMenu)
+    .addSubMenu(orchestratorMenu)
     .addSubMenu(adminMenu)
     .addSubMenu(diagnosticsMenu)
     .addToUi();
