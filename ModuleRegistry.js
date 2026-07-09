@@ -1,6 +1,6 @@
 /*********************************************************
  * ModuleRegistry.gs
- * Wave 2.3.1
+ * Wave 2.3.2
  *********************************************************/
 
 const FO_MODULES = {
@@ -11,6 +11,7 @@ const FO_MODULES = {
   VALUATION: foRunPortfolioValuation,
   PORTFOLIO_DATA_INTEGRITY: foRunPortfolioDataIntegrity,
   PERFORMANCE: foRunPortfolioPerformance,
+  EXPOSURE: foRunPortfolioExposureAttribution,
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
   CIO: foRunCioDecisionEngine,

@@ -1,6 +1,6 @@
 /************************************************************
  * AutonomousCioOrchestrator.gs
- * Wave 2.3.1
+ * Wave 2.3.2
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
@@ -20,6 +20,7 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Valuation', foGetModule('VALUATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Data Integrity', foGetModule('PORTFOLIO_DATA_INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Performance', foGetModule('PERFORMANCE')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Exposure Attribution', foGetModule('EXPOSURE')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
