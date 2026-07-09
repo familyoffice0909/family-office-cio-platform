@@ -1,6 +1,6 @@
 /************************************************************
  * IbkrReconciliationEngine.gs
- * Wave 2.3.3 — Interactive Brokers Reconciliation Engine
+ * Wave 2.3.3.1 — Consolidated IBKR Reconciliation Report
  ************************************************************/
 
 function foSeedIbkrPositionSnapshot() {
@@ -46,48 +46,15 @@ function foSeedIbkrPositionSnapshot() {
     ]]);
 
     const rows = [
-      [
-        new Date(),
-        'QBTS',
-        47.5,
-        21.19000055,
-        1006.52502613,
-        'USD',
-        17.63271368,
-        168.97112613,
-        26.12502613,
-        'STK',
-        'IBKR Live Connector Snapshot',
-        FO_CONFIG.PLATFORM_VERSION,
-        FO_CONFIG.BASELINE
-      ],
-      [
-        new Date(),
-        'RGTI',
-        80,
-        17.01000025,
-        1360.80002,
-        'USD',
-        16.23447125,
-        62.04232,
-        7.20002,
-        'STK',
-        'IBKR Live Connector Snapshot',
-        FO_CONFIG.PLATFORM_VERSION,
-        FO_CONFIG.BASELINE
-      ]
+      [new Date(), 'QBTS', 47.5, 21.19000055, 1006.52502613, 'USD', 17.63271368, 168.97112613, 26.12502613, 'STK', 'IBKR Live Connector Snapshot', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+      [new Date(), 'RGTI', 80, 17.01000025, 1360.80002, 'USD', 16.23447125, 62.04232, 7.20002, 'STK', 'IBKR Live Connector Snapshot', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
     ];
 
     sheet.getRange(2, 1, rows.length, 13).setValues(rows);
     sheet.setFrozenRows(1);
     sheet.autoResizeColumns(1, 13);
 
-    foInfo_(module, 'Complete', 'IBKR position snapshot seeded.');
-
-    return {
-      status: 'SUCCESS',
-      positionsSeeded: rows.length
-    };
+    return { status: 'SUCCESS', positionsSeeded: rows.length };
 
   } catch (error) {
     foError_(module, 'Failure', error);
@@ -105,13 +72,8 @@ function foRunIbkrReconciliation() {
     const portfolioSheet = dashboard.getSheetByName(FO_SHEETS.PORTFOLIO_MASTER);
     const ibkrSheet = dashboard.getSheetByName('IBKR Position Snapshot');
 
-    if (!portfolioSheet) {
-      throw new Error('Portfolio Master sheet not found.');
-    }
-
-    if (!ibkrSheet) {
-      throw new Error('IBKR Position Snapshot sheet not found. Run foSeedIbkrPositionSnapshot first.');
-    }
+    if (!portfolioSheet) throw new Error('Portfolio Master sheet not found.');
+    if (!ibkrSheet) throw new Error('IBKR Position Snapshot sheet not found. Run foSeedIbkrPositionSnapshot first.');
 
     const portfolioValues = portfolioSheet.getDataRange().getValues();
     const portfolioHeaders = portfolioValues[0].map(String);
@@ -123,134 +85,159 @@ function foRunIbkrReconciliation() {
     const ibkrMap = foBuildIbkrSnapshotMap_(ibkrValues, ibkrHeaders);
 
     const rows = [];
-
-    Object.keys(ibkrMap).forEach(function(ticker) {
-      const broker = ibkrMap[ticker];
-      const local = portfolioMap[ticker];
-
-      if (!local) {
-        rows.push(foIbkrReconRow_(
-          ticker,
-          'MISSING_IN_PORTFOLIO',
-          'HIGH',
-          '',
-          broker.quantity,
-          '',
-          broker.marketPrice,
-          '',
-          broker.averagePrice,
-          '',
-          broker.marketValue,
-          'IBKR position exists but Portfolio Master has no matching Interactive Brokers row.'
-        ));
-        return;
-      }
-
-      const quantityDiff = broker.quantity - local.quantity;
-      const priceDiff = broker.marketPrice - local.currentPrice;
-      const avgCostDiff = broker.averagePrice - local.averageCost;
-      const marketValueDiff = broker.marketValue - local.marketValue;
-
-      const quantityStatus = Math.abs(quantityDiff) < 0.0001 ? 'MATCH' : 'MISMATCH';
-      const priceStatus = Math.abs(priceDiff) <= 0.25 ? 'MATCH' : 'STALE_OR_MISMATCH';
-      const avgCostStatus = Math.abs(avgCostDiff) <= 0.05 ? 'MATCH' : 'MISMATCH';
-      const marketValueStatus = Math.abs(marketValueDiff) <= 5 ? 'MATCH' : 'MISMATCH';
-
-      rows.push(foIbkrReconRow_(
-        ticker,
-        quantityStatus,
-        quantityStatus === 'MATCH' ? 'INFO' : 'HIGH',
-        local.quantity,
-        broker.quantity,
-        local.currentPrice,
-        broker.marketPrice,
-        local.averageCost,
-        broker.averagePrice,
-        local.marketValue,
-        broker.marketValue,
-        'Quantity comparison.'
-      ));
-
-      rows.push(foIbkrReconRow_(
-        ticker,
-        priceStatus,
-        priceStatus === 'MATCH' ? 'INFO' : 'LOW',
-        local.quantity,
-        broker.quantity,
-        local.currentPrice,
-        broker.marketPrice,
-        local.averageCost,
-        broker.averagePrice,
-        local.marketValue,
-        broker.marketValue,
-        'Price comparison. Small differences are normal during live market movement.'
-      ));
-
-      rows.push(foIbkrReconRow_(
-        ticker,
-        avgCostStatus,
-        avgCostStatus === 'MATCH' ? 'INFO' : 'MEDIUM',
-        local.quantity,
-        broker.quantity,
-        local.currentPrice,
-        broker.marketPrice,
-        local.averageCost,
-        broker.averagePrice,
-        local.marketValue,
-        broker.marketValue,
-        'Average cost comparison.'
-      ));
-
-      rows.push(foIbkrReconRow_(
-        ticker,
-        marketValueStatus,
-        marketValueStatus === 'MATCH' ? 'INFO' : 'MEDIUM',
-        local.quantity,
-        broker.quantity,
-        local.currentPrice,
-        broker.marketPrice,
-        local.averageCost,
-        broker.averagePrice,
-        local.marketValue,
-        broker.marketValue,
-        'Market value comparison.'
-      ));
-    });
+    const tickers = {};
 
     Object.keys(portfolioMap).forEach(function(ticker) {
-      if (!ibkrMap[ticker]) {
-        const local = portfolioMap[ticker];
+      tickers[ticker] = true;
+    });
 
-        rows.push(foIbkrReconRow_(
-          ticker,
-          'MISSING_IN_IBKR',
-          'HIGH',
-          local.quantity,
-          '',
-          local.currentPrice,
-          '',
-          local.averageCost,
-          '',
-          local.marketValue,
-          '',
-          'Portfolio Master shows Interactive Brokers position but IBKR snapshot does not.'
-        ));
-      }
+    Object.keys(ibkrMap).forEach(function(ticker) {
+      tickers[ticker] = true;
+    });
+
+    Object.keys(tickers).sort().forEach(function(ticker) {
+      const local = portfolioMap[ticker];
+      const broker = ibkrMap[ticker];
+
+      rows.push(foBuildConsolidatedIbkrReconRow_(ticker, local, broker));
     });
 
     foWriteIbkrReconciliationReport_(dashboard, rows);
 
-    foInfo_(module, 'Complete', 'IBKR reconciliation completed. Rows: ' + rows.length);
+    foInfo_(module, 'Complete', 'IBKR reconciliation completed. Tickers reconciled: ' + rows.length);
 
     return {
       status: 'SUCCESS',
-      reconciliationRows: rows.length
+      tickersReconciled: rows.length
     };
 
   } catch (error) {
     foError_(module, 'Failure', error);
     throw error;
   }
+}
+
+function foBuildConsolidatedIbkrReconRow_(ticker, local, broker) {
+  if (!local && broker) {
+    return [
+      new Date(),
+      ticker,
+      'MISSING_IN_PORTFOLIO',
+      'HIGH',
+      '',
+      broker.quantity,
+      '',
+      broker.marketPrice,
+      '',
+      broker.averagePrice,
+      '',
+      broker.marketValue,
+      '',
+      broker.unrealizedPnl,
+      broker.dailyPnl,
+      '❌',
+      '❌',
+      '❌',
+      '❌',
+      'IBKR position exists but Portfolio Master has no matching Interactive Brokers row.',
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE
+    ];
+  }
+
+  if (local && !broker) {
+    return [
+      new Date(),
+      ticker,
+      'MISSING_IN_IBKR',
+      'HIGH',
+      local.quantity,
+      '',
+      local.currentPrice,
+      '',
+      local.averageCost,
+      '',
+      local.marketValue,
+      '',
+      local.costBasis,
+      '',
+      '',
+      '❌',
+      '❌',
+      '❌',
+      '❌',
+      'Portfolio Master shows Interactive Brokers position but IBKR snapshot does not.',
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE
+    ];
+  }
+
+  const quantityDiff = broker.quantity - local.quantity;
+  const priceDiff = broker.marketPrice - local.currentPrice;
+  const avgCostDiff = broker.averagePrice - local.averageCost;
+  const marketValueDiff = broker.marketValue - local.marketValue;
+
+  const quantityMatch = Math.abs(quantityDiff) < 0.0001;
+  const priceMatch = Math.abs(priceDiff) <= 0.25;
+  const avgCostMatch = Math.abs(avgCostDiff) <= 0.05;
+  const marketValueMatch = Math.abs(marketValueDiff) <= 5;
+
+  let status = 'MATCH';
+  let severity = 'INFO';
+  const notes = [];
+
+  if (!quantityMatch) {
+    status = 'MISMATCH';
+    severity = 'HIGH';
+    notes.push('Quantity mismatch.');
+  }
+
+  if (!priceMatch) {
+    status = status === 'MATCH' ? 'PRICE_STALE_OR_MISMATCH' : status;
+    severity = severity === 'HIGH' ? 'HIGH' : 'LOW';
+    notes.push('Price differs beyond tolerance.');
+  }
+
+  if (!avgCostMatch) {
+    status = status === 'MATCH' ? 'AVG_COST_MISMATCH' : status;
+    severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+    notes.push('Average cost mismatch.');
+  }
+
+  if (!marketValueMatch) {
+    status = status === 'MATCH' ? 'MARKET_VALUE_MISMATCH' : status;
+    severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+    notes.push('Market value mismatch.');
+  }
+
+  if (notes.length === 0) {
+    notes.push('All core IBKR reconciliation checks passed.');
+  }
+
+  return [
+    new Date(),
+    ticker,
+    status,
+    severity,
+    local.quantity,
+    broker.quantity,
+    local.currentPrice,
+    broker.marketPrice,
+    local.averageCost,
+    broker.averagePrice,
+    local.marketValue,
+    broker.marketValue,
+    local.costBasis,
+    broker.unrealizedPnl,
+    broker.dailyPnl,
+    quantityMatch ? '✅' : '❌',
+    priceMatch ? '✅' : '❌',
+    avgCostMatch ? '✅' : '❌',
+    marketValueMatch ? '✅' : '❌',
+    notes.join(' '),
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE
+  ];
 }
 
 function foBuildIbkrPortfolioMap_(values, headers) {
@@ -310,31 +297,11 @@ function foBuildIbkrSnapshotMap_(values, headers) {
   return map;
 }
 
-function foIbkrReconRow_(ticker, status, severity, localQty, ibkrQty, localPrice, ibkrPrice, localAvgCost, ibkrAvgCost, localMarketValue, ibkrMarketValue, notes) {
-  return [
-    new Date(),
-    ticker,
-    status,
-    severity,
-    localQty,
-    ibkrQty,
-    localPrice,
-    ibkrPrice,
-    localAvgCost,
-    ibkrAvgCost,
-    localMarketValue,
-    ibkrMarketValue,
-    notes,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE
-  ];
-}
-
 function foWriteIbkrReconciliationReport_(dashboard, rows) {
   const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Report', [
     'Timestamp',
     'Ticker',
-    'Status',
+    'Overall Status',
     'Severity',
     'Local Quantity',
     'IBKR Quantity',
@@ -344,6 +311,13 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
     'IBKR Avg Cost',
     'Local Market Value',
     'IBKR Market Value',
+    'Local Cost Basis',
+    'IBKR Unrealized P&L',
+    'IBKR Daily P&L',
+    'Quantity Check',
+    'Price Check',
+    'Average Cost Check',
+    'Market Value Check',
     'Notes',
     'Platform Version',
     'Baseline'
@@ -351,10 +325,10 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
 
   sheet.clearContents();
 
-  sheet.getRange(1, 1, 1, 15).setValues([[
+  sheet.getRange(1, 1, 1, 22).setValues([[
     'Timestamp',
     'Ticker',
-    'Status',
+    'Overall Status',
     'Severity',
     'Local Quantity',
     'IBKR Quantity',
@@ -364,17 +338,24 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
     'IBKR Avg Cost',
     'Local Market Value',
     'IBKR Market Value',
+    'Local Cost Basis',
+    'IBKR Unrealized P&L',
+    'IBKR Daily P&L',
+    'Quantity Check',
+    'Price Check',
+    'Average Cost Check',
+    'Market Value Check',
     'Notes',
     'Platform Version',
     'Baseline'
   ]]);
 
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 15).setValues(rows);
+    sheet.getRange(2, 1, rows.length, 22).setValues(rows);
   }
 
   sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, 15);
+  sheet.autoResizeColumns(1, 22);
 }
 
 function foIbkrNumber_(value) {
