@@ -19,6 +19,13 @@ function onOpen() {
     .addSeparator()
     .addItem('Portfolio Engine Smoke Test', 'foRunPortfolioEngineSmokeTest')
     .addItem('Build Portfolio Snapshot', 'foBuildPortfolioSnapshot')
+    .addSeparator()
+    .addItem('Run Market Intelligence', 'foRunMarketIntelligence')
+    .addItem('Market Intelligence Smoke Test', 'foRunMarketIntelligenceSmokeTest')
+    .addSeparator()
+    .addItem('Run CIO Decision Engine', 'foRunCioDecisionEngine')
+    .addItem('CIO Decision Engine Smoke Test', 'foRunCioDecisionEngineSmokeTest')
+    .addSeparator()
     .addItem('Rebuild Portfolio State', 'foRebuildPortfolioState')
     .addItem('Seed Known CDRs', 'foSeedKnownCDRs');
 
