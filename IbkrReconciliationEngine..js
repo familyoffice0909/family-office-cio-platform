@@ -1,6 +1,6 @@
 /************************************************************
  * IbkrReconciliationEngine.gs
- * Wave 2.3.3.2 — IBKR Reconciliation Data Quality Scoring
+ * Wave 2.3.3.3 — IBKR Reconciliation Executive Hardening
  ************************************************************/
 
 function foSeedIbkrPositionSnapshot() {
@@ -98,14 +98,19 @@ function foRunIbkrReconciliation() {
       return foBuildConsolidatedIbkrReconRow_(ticker, portfolioMap[ticker], ibkrMap[ticker]);
     });
 
-    foWriteIbkrReconciliationReport_(dashboard, rows);
-    foWriteIbkrReconciliationSummary_(dashboard, rows);
+    const summary = foBuildIbkrReconciliationSummary_(rows);
+
+    foWriteIbkrReconciliationReport_(dashboard, rows, summary);
+    foWriteIbkrReconciliationSummary_(dashboard, summary);
+    foAppendIbkrReconciliationHistory_(dashboard, summary);
 
     foInfo_(module, 'Complete', 'IBKR reconciliation completed. Tickers reconciled: ' + rows.length);
 
     return {
       status: 'SUCCESS',
-      tickersReconciled: rows.length
+      tickersReconciled: rows.length,
+      averageDataQualityScore: summary.averageDataQualityScore,
+      overallStatus: summary.overallStatus
     };
 
   } catch (error) {
@@ -223,6 +228,243 @@ function foBuildConsolidatedIbkrReconRow_(ticker, local, broker) {
   ];
 }
 
+function foBuildIbkrReconciliationSummary_(rows) {
+  const total = rows.length;
+
+  const avgScore = total > 0
+    ? rows.reduce(function(sum, row) { return sum + foIbkrNumber_(row[4]); }, 0) / total
+    : 0;
+
+  const high = rows.filter(function(row) { return row[3] === 'HIGH'; }).length;
+  const medium = rows.filter(function(row) { return row[3] === 'MEDIUM'; }).length;
+  const low = rows.filter(function(row) { return row[3] === 'LOW'; }).length;
+  const info = rows.filter(function(row) { return row[3] === 'INFO'; }).length;
+  const warnings = medium + low;
+
+  let overallStatus = 'PASS';
+
+  if (high > 0) {
+    overallStatus = 'FAIL';
+  } else if (warnings > 0) {
+    overallStatus = 'PASS_WITH_WARNINGS';
+  }
+
+  return {
+    timestamp: new Date(),
+    totalPositions: total,
+    averageDataQualityScore: avgScore,
+    highSeverityIssues: high,
+    mediumSeverityIssues: medium,
+    lowSeverityIssues: low,
+    warnings: warnings,
+    cleanMatches: info,
+    overallStatus: overallStatus
+  };
+}
+
+function foWriteIbkrReconciliationReport_(dashboard, rows, summary) {
+  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Report', [
+    'Metric',
+    'Value',
+    'Notes'
+  ]);
+
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, 4).setValues([[
+    'IBKR Reconciliation Executive Summary',
+    '',
+    '',
+    ''
+  ]]);
+
+  sheet.getRange(2, 1, 6, 4).setValues([
+    ['Overall Status', summary.overallStatus, '', ''],
+    ['Average Data Quality Score', summary.averageDataQualityScore, '100 is best.', ''],
+    ['Securities Reconciled', summary.totalPositions, '', ''],
+    ['Critical Issues', summary.highSeverityIssues, '', ''],
+    ['Warnings', summary.warnings, 'Medium + Low severity issues.', ''],
+    ['Fully Matched', summary.cleanMatches, '', '']
+  ]);
+
+  const startRow = 9;
+
+  sheet.getRange(startRow, 1, 1, 23).setValues([[
+    'Timestamp',
+    'Ticker',
+    'Overall Status',
+    'Severity',
+    'Data Quality Score',
+    'Local Quantity',
+    'IBKR Quantity',
+    'Local Price',
+    'IBKR Price',
+    'Local Avg Cost',
+    'IBKR Avg Cost',
+    'Local Market Value',
+    'IBKR Market Value',
+    'Local Cost Basis',
+    'IBKR Unrealized P&L',
+    'IBKR Daily P&L',
+    'Quantity Check',
+    'Price Check',
+    'Average Cost Check',
+    'Market Value Check',
+    'Notes',
+    'Platform Version',
+    'Baseline'
+  ]]);
+
+  if (rows.length > 0) {
+    sheet.getRange(startRow + 1, 1, rows.length, 23).setValues(rows);
+  }
+
+  sheet.setFrozenRows(startRow);
+  sheet.autoResizeColumns(1, 23);
+  foApplyIbkrReconciliationFormatting_(sheet, startRow, rows.length);
+}
+
+function foApplyIbkrReconciliationFormatting_(sheet, startRow, rowCount) {
+  const maxRows = sheet.getMaxRows();
+  const maxCols = sheet.getMaxColumns();
+
+  sheet.getRange(1, 1, maxRows, maxCols).setFontFamily('Arial');
+  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setFontSize(12);
+
+  sheet.getRange(2, 1, 6, 2).setFontWeight('bold');
+
+  sheet.getRange(startRow, 1, 1, 23)
+    .setFontWeight('bold')
+    .setBackground('#1f4e78')
+    .setFontColor('#ffffff');
+
+  if (rowCount <= 0) return;
+
+  const detailRange = sheet.getRange(startRow + 1, 1, rowCount, 23);
+  const rules = [];
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('MATCH')
+      .setBackground('#d9ead3')
+      .setRanges([sheet.getRange(startRow + 1, 3, rowCount, 1)])
+      .build()
+  );
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains('MISSING')
+      .setBackground('#fff2cc')
+      .setRanges([sheet.getRange(startRow + 1, 3, rowCount, 1)])
+      .build()
+  );
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextContains('MISMATCH')
+      .setBackground('#f4cccc')
+      .setRanges([sheet.getRange(startRow + 1, 3, rowCount, 1)])
+      .build()
+  );
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberGreaterThanOrEqualTo(95)
+      .setBackground('#d9ead3')
+      .setRanges([sheet.getRange(startRow + 1, 5, rowCount, 1)])
+      .build()
+  );
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberBetween(80, 94)
+      .setBackground('#fff2cc')
+      .setRanges([sheet.getRange(startRow + 1, 5, rowCount, 1)])
+      .build()
+  );
+
+  rules.push(
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberLessThan(80)
+      .setBackground('#f4cccc')
+      .setRanges([sheet.getRange(startRow + 1, 5, rowCount, 1)])
+      .build()
+  );
+
+  sheet.setConditionalFormatRules(rules);
+  detailRange.setVerticalAlignment('middle');
+}
+
+function foWriteIbkrReconciliationSummary_(dashboard, summary) {
+  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Summary', [
+    'Timestamp',
+    'Metric',
+    'Value',
+    'Notes',
+    'Platform Version',
+    'Baseline'
+  ]);
+
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, 6).setValues([[
+    'Timestamp',
+    'Metric',
+    'Value',
+    'Notes',
+    'Platform Version',
+    'Baseline'
+  ]]);
+
+  const rows = [
+    [new Date(), 'Overall Status', summary.overallStatus, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'IBKR Positions Reconciled', summary.totalPositions, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Average Data Quality Score', summary.averageDataQualityScore, '100 is best.', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'High Severity Issues', summary.highSeverityIssues, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Medium Severity Issues', summary.mediumSeverityIssues, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Low Severity Issues', summary.lowSeverityIssues, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Warnings', summary.warnings, 'Medium + Low severity issues.', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Clean Matches', summary.cleanMatches, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
+  ];
+
+  sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 6);
+}
+
+function foAppendIbkrReconciliationHistory_(dashboard, summary) {
+  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation History', [
+    'Timestamp',
+    'Overall Status',
+    'Average Data Quality Score',
+    'Positions Reconciled',
+    'High Severity Issues',
+    'Medium Severity Issues',
+    'Low Severity Issues',
+    'Warnings',
+    'Clean Matches',
+    'Platform Version',
+    'Baseline'
+  ]);
+
+  sheet.appendRow([
+    new Date(),
+    summary.overallStatus,
+    summary.averageDataQualityScore,
+    summary.totalPositions,
+    summary.highSeverityIssues,
+    summary.mediumSeverityIssues,
+    summary.lowSeverityIssues,
+    summary.warnings,
+    summary.cleanMatches,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE
+  ]);
+
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 11);
+}
+
 function foBuildIbkrPortfolioMap_(values, headers) {
   const map = {};
 
@@ -278,114 +520,6 @@ function foBuildIbkrSnapshotMap_(values, headers) {
   }
 
   return map;
-}
-
-function foWriteIbkrReconciliationReport_(dashboard, rows) {
-  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Report', [
-    'Timestamp',
-    'Ticker',
-    'Overall Status',
-    'Severity',
-    'Data Quality Score',
-    'Local Quantity',
-    'IBKR Quantity',
-    'Local Price',
-    'IBKR Price',
-    'Local Avg Cost',
-    'IBKR Avg Cost',
-    'Local Market Value',
-    'IBKR Market Value',
-    'Local Cost Basis',
-    'IBKR Unrealized P&L',
-    'IBKR Daily P&L',
-    'Quantity Check',
-    'Price Check',
-    'Average Cost Check',
-    'Market Value Check',
-    'Notes',
-    'Platform Version',
-    'Baseline'
-  ]);
-
-  sheet.clearContents();
-
-  sheet.getRange(1, 1, 1, 23).setValues([[
-    'Timestamp',
-    'Ticker',
-    'Overall Status',
-    'Severity',
-    'Data Quality Score',
-    'Local Quantity',
-    'IBKR Quantity',
-    'Local Price',
-    'IBKR Price',
-    'Local Avg Cost',
-    'IBKR Avg Cost',
-    'Local Market Value',
-    'IBKR Market Value',
-    'Local Cost Basis',
-    'IBKR Unrealized P&L',
-    'IBKR Daily P&L',
-    'Quantity Check',
-    'Price Check',
-    'Average Cost Check',
-    'Market Value Check',
-    'Notes',
-    'Platform Version',
-    'Baseline'
-  ]]);
-
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 23).setValues(rows);
-  }
-
-  sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, 23);
-}
-
-function foWriteIbkrReconciliationSummary_(dashboard, rows) {
-  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Summary', [
-    'Timestamp',
-    'Metric',
-    'Value',
-    'Notes',
-    'Platform Version',
-    'Baseline'
-  ]);
-
-  sheet.clearContents();
-
-  sheet.getRange(1, 1, 1, 6).setValues([[
-    'Timestamp',
-    'Metric',
-    'Value',
-    'Notes',
-    'Platform Version',
-    'Baseline'
-  ]]);
-
-  const total = rows.length;
-  const avgScore = total > 0
-    ? rows.reduce(function(sum, row) { return sum + foIbkrNumber_(row[4]); }, 0) / total
-    : 0;
-
-  const high = rows.filter(function(row) { return row[3] === 'HIGH'; }).length;
-  const medium = rows.filter(function(row) { return row[3] === 'MEDIUM'; }).length;
-  const low = rows.filter(function(row) { return row[3] === 'LOW'; }).length;
-  const info = rows.filter(function(row) { return row[3] === 'INFO'; }).length;
-
-  const summaryRows = [
-    [new Date(), 'IBKR Positions Reconciled', total, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), 'Average Data Quality Score', avgScore, '100 is best.', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), 'High Severity Issues', high, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), 'Medium Severity Issues', medium, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), 'Low Severity Issues', low, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), 'Clean Matches', info, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
-  ];
-
-  sheet.getRange(2, 1, summaryRows.length, 6).setValues(summaryRows);
-  sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, 6);
 }
 
 function foIbkrNumber_(value) {
