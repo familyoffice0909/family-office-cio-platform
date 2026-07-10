@@ -2,7 +2,8 @@ name: CIO Platform CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
   push:
     branches:
       - "feature/**"
@@ -28,7 +29,7 @@ jobs:
       - name: Configure Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install dependencies
         run: npm install
@@ -44,11 +45,11 @@ jobs:
             "Code.js"
             "Config.js"
             "Bootstrap.js"
-            "SpreadsheetService_.js"
             "HealthCheck.js"
           )
 
           missing=0
+
           for file in "${required_files[@]}"; do
             if [[ ! -f "$file" ]]; then
               echo "::error file=$file::Required platform file is missing."
@@ -58,22 +59,52 @@ jobs:
             fi
           done
 
+          spreadsheet_service="$(
+            find . \
+              -maxdepth 1 \
+              -type f \
+              -name 'SpreadsheetService*.js' \
+              -print \
+              -quit
+          )"
+
+          if [[ -z "$spreadsheet_service" ]]; then
+            echo "::error::A SpreadsheetService JavaScript file is required."
+            missing=1
+          else
+            echo "Found $spreadsheet_service"
+          fi
+
           if [[ "$missing" -ne 0 ]]; then
             exit 1
           fi
 
       - name: Validate Apps Script manifest
+        shell: bash
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const manifest = JSON.parse(fs.readFileSync('appsscript.json', 'utf8'));
+
+          const manifestPath = 'appsscript.json';
+
+          if (!fs.existsSync(manifestPath)) {
+            throw new Error('appsscript.json was not found.');
+          }
+
+          const manifest = JSON.parse(
+            fs.readFileSync(manifestPath, 'utf8')
+          );
 
           if (manifest.runtimeVersion !== 'V8') {
-            throw new Error('appsscript.json must use runtimeVersion V8.');
+            throw new Error(
+              'appsscript.json must use runtimeVersion V8.'
+            );
           }
 
           if (!manifest.timeZone) {
-            throw new Error('appsscript.json must define timeZone.');
+            throw new Error(
+              'appsscript.json must define timeZone.'
+            );
           }
 
           console.log('Apps Script manifest is valid.');
@@ -82,7 +113,11 @@ jobs:
       - name: Scan for committed secrets
         shell: bash
         run: |
-          forbidden_files=(".clasprc.json" ".env")
+          forbidden_files=(
+            ".clasprc.json"
+            ".env"
+          )
+
           found=0
 
           for file in "${forbidden_files[@]}"; do
@@ -95,3 +130,10 @@ jobs:
           if [[ "$found" -ne 0 ]]; then
             exit 1
           fi
+
+      - name: CI summary
+        shell: bash
+        run: |
+          echo "Family Office CIO Platform validation completed."
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
