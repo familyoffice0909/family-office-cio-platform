@@ -1,6 +1,6 @@
 /**
  * Buy Zone Intelligence Engine
- * Wave 2.4.1-E — Executive Buy Zone Dashboard
+ * Wave 2.4.1-F — Executive Dashboard Refinement
  */
 
 function foRunBuyZoneIntelligence() {

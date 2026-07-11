@@ -1,6 +1,6 @@
 /**
  * Buy Zone Executive Dashboard Engine
- * Wave 2.4.1-E — Executive Buy Zone Dashboard
+ * Wave 2.4.1-F — Executive Dashboard Refinement
  */
 
 function foRunBuyZoneExecutiveDashboard() {
@@ -10,7 +10,8 @@ function foRunBuyZoneExecutiveDashboard() {
     foInfo_(module, 'Start', 'Executive Buy Zone Dashboard started.');
 
     const dashboard = foDashboard_();
-    const results = foReadBuyZoneIntelligenceResults_(dashboard);
+    const rawResults = foReadBuyZoneIntelligenceResults_(dashboard);
+    const results = foConsolidateExecutiveResults_(rawResults);
 
     foWriteBuyZoneExecutiveDashboard_(dashboard, results);
 
@@ -24,10 +25,9 @@ function foRunBuyZoneExecutiveDashboard() {
       status: 'SUCCESS',
       positionsEvaluated: results.length,
       actionableCandidates: results.filter(function(item) {
-        return item.recommendation === 'STRONG BUY' ||
-          item.recommendation === 'BUY' ||
-          item.recommendation === 'ACCUMULATE';
-      }).length
+        return foIsExecutiveActionable_(item.recommendation);
+      }).length,
+      deploymentReadiness: foExecutiveDeploymentReadiness_(results)
     };
   } catch (error) {
     foError_(module, 'Failure', error);
@@ -51,7 +51,9 @@ function foReadBuyZoneIntelligenceResults_(dashboard) {
 
   return values.slice(1).map(function(row) {
     return {
-      ticker: foExecutiveVal_(row, headers, 'Ticker'),
+      ticker: String(
+        foExecutiveVal_(row, headers, 'Ticker') || ''
+      ).trim().toUpperCase(),
       company: foExecutiveVal_(row, headers, 'Company'),
       account: foExecutiveVal_(row, headers, 'Account'),
       currentPrice: foExecutiveNumber_(
@@ -60,8 +62,11 @@ function foReadBuyZoneIntelligenceResults_(dashboard) {
       targetEntryPrice: foExecutiveNumber_(
         foExecutiveVal_(row, headers, 'Target Entry Price')
       ),
+      targetDiscountPct: foExecutiveNumber_(
+        foExecutiveVal_(row, headers, 'Target Discount %')
+      ),
       zonePosition: foExecutiveVal_(row, headers, 'Zone Position'),
-      distancePct: foExecutiveNumber_(
+      distancePct: foExecutiveNullableNumber_(
         foExecutiveVal_(row, headers, 'Distance to Entry %')
       ),
       priceFreshness: foExecutiveVal_(
@@ -74,6 +79,9 @@ function foReadBuyZoneIntelligenceResults_(dashboard) {
       ),
       riskScore: foExecutiveNumber_(
         foExecutiveVal_(row, headers, 'Risk Score')
+      ),
+      dataQualityScore: foExecutiveNumber_(
+        foExecutiveVal_(row, headers, 'Data Quality Score')
       ),
       confidence: foExecutiveNumber_(
         foExecutiveVal_(row, headers, 'Buy Zone Confidence')
@@ -89,6 +97,45 @@ function foReadBuyZoneIntelligenceResults_(dashboard) {
     };
   }).filter(function(item) {
     return item.ticker;
+  });
+}
+
+function foConsolidateExecutiveResults_(results) {
+  const groups = {};
+
+  results.forEach(function(item) {
+    if (!groups[item.ticker]) groups[item.ticker] = [];
+    groups[item.ticker].push(item);
+  });
+
+  return Object.keys(groups).map(function(ticker) {
+    const items = groups[ticker];
+    const representative = items.slice().sort(function(a, b) {
+      return foExecutiveOpportunityScore_(b) -
+        foExecutiveOpportunityScore_(a);
+    })[0];
+
+    return {
+      ticker: ticker,
+      company: representative.company,
+      account: foExecutiveAccounts_(items),
+      currentPrice: representative.currentPrice,
+      targetEntryPrice: representative.targetEntryPrice,
+      targetDiscountPct: foExecutiveAverageNullable_(
+        items,
+        'targetDiscountPct'
+      ),
+      zonePosition: representative.zonePosition,
+      distancePct: foExecutiveClosestDistance_(items),
+      priceFreshness: foExecutiveWorstFreshness_(items),
+      convictionScore: foExecutiveAverage_(items, 'convictionScore'),
+      riskScore: foExecutiveAverage_(items, 'riskScore'),
+      dataQualityScore: foExecutiveAverage_(items, 'dataQualityScore'),
+      confidence: foExecutiveAverage_(items, 'confidence'),
+      recommendation: foExecutiveBestRecommendation_(items),
+      recommendationReason: foExecutiveShortReason_(representative),
+      accountCount: items.length
+    };
   });
 }
 
@@ -110,22 +157,37 @@ function foWriteBuyZoneExecutiveDashboard_(dashboard, results) {
     rows[0].length
   ).setValues(rows);
 
-  foFormatBuyZoneExecutiveDashboard_(sheet, rows.length);
+  foFormatBuyZoneExecutiveDashboard_(sheet, rows);
 }
 
 function foBuildBuyZoneExecutiveRows_(results) {
   const now = new Date();
   const counts = foBuyZoneRecommendationCounts_(results);
   const actionable = results.filter(function(item) {
-    return item.recommendation === 'STRONG BUY' ||
-      item.recommendation === 'BUY' ||
-      item.recommendation === 'ACCUMULATE';
+    return foIsExecutiveActionable_(item.recommendation);
   });
 
   const ranked = results.slice().sort(function(a, b) {
     return foExecutiveOpportunityScore_(b) -
       foExecutiveOpportunityScore_(a);
   });
+
+  const fresh = results.filter(function(item) {
+    return item.priceFreshness === 'FRESH';
+  }).length;
+  const stale = results.filter(function(item) {
+    return item.priceFreshness === 'STALE';
+  }).length;
+  const missing = results.filter(function(item) {
+    return item.priceFreshness === 'MISSING';
+  }).length;
+  const validPricing = results.length - missing;
+  const priceCoverage = results.length
+    ? validPricing / results.length
+    : 0;
+  const freshnessCoverage = results.length
+    ? fresh / results.length
+    : 0;
 
   const averageConviction = foExecutiveAverage_(
     results,
@@ -136,6 +198,18 @@ function foBuildBuyZoneExecutiveRows_(results) {
     results,
     'confidence'
   );
+  const averageDistance = foExecutiveAverageNullable_(
+    results,
+    'distancePct'
+  );
+  const averageTargetDiscount = foExecutiveAverageNullable_(
+    results,
+    'targetDiscountPct'
+  );
+  const averageDataQuality = foExecutiveAverage_(
+    results,
+    'dataQualityScore'
+  );
 
   const highestConviction = foExecutiveHighest_(
     results,
@@ -143,6 +217,21 @@ function foBuildBuyZoneExecutiveRows_(results) {
   );
   const lowestRisk = foExecutiveLowest_(results, 'riskScore');
   const closestToEntry = foExecutiveClosestToEntry_(results);
+  const readiness = foExecutiveDeploymentReadiness_(results);
+  const dataQualityStatus = foExecutiveDataQualityStatus_(
+    averageDataQuality
+  );
+  const freshnessStatus = foExecutiveFreshnessStatus_(
+    fresh,
+    stale,
+    missing,
+    results.length
+  );
+  const executiveMessage = foExecutiveDeploymentMessage_(
+    results,
+    actionable.length,
+    readiness
+  );
 
   const rows = [
     [
@@ -152,7 +241,28 @@ function foBuildBuyZoneExecutiveRows_(results) {
       'Details',
       'Timestamp'
     ],
-    ['OVERVIEW', 'Positions Evaluated', results.length, '', now],
+    [
+      'STATUS',
+      'Capital Deployment Readiness',
+      readiness,
+      executiveMessage,
+      now
+    ],
+    [
+      'STATUS',
+      'Price Freshness Status',
+      freshnessStatus,
+      fresh + ' fresh / ' + stale + ' stale / ' + missing + ' missing',
+      now
+    ],
+    [
+      'STATUS',
+      'Data Quality Status',
+      dataQualityStatus,
+      'Average score ' + averageDataQuality,
+      now
+    ],
+    ['OVERVIEW', 'Unique Securities Evaluated', results.length, '', now],
     [
       'OVERVIEW',
       'Actionable Candidates',
@@ -171,44 +281,27 @@ function foBuildBuyZoneExecutiveRows_(results) {
     ],
     [
       'OVERVIEW',
-      'Fresh Prices',
-      results.filter(function(item) {
-        return item.priceFreshness === 'FRESH';
-      }).length,
-      '',
+      'Buy Zone Coverage',
+      priceCoverage,
+      'Securities with usable current prices',
       now
     ],
     [
       'OVERVIEW',
-      'Stale Prices',
-      results.filter(function(item) {
-        return item.priceFreshness === 'STALE';
-      }).length,
-      '',
+      'Fresh Price Coverage',
+      freshnessCoverage,
+      'Fresh prices divided by unique securities',
       now
     ],
-    [
-      'OVERVIEW',
-      'Missing Prices',
-      results.filter(function(item) {
-        return item.priceFreshness === 'MISSING';
-      }).length,
-      '',
-      now
-    ],
+    ['OVERVIEW', 'Stale Prices', stale, '', now],
+    ['OVERVIEW', 'Missing Prices', missing, '', now],
     ['RECOMMENDATIONS', 'STRONG BUY', counts['STRONG BUY'], '', now],
     ['RECOMMENDATIONS', 'BUY', counts.BUY, '', now],
     ['RECOMMENDATIONS', 'ACCUMULATE', counts.ACCUMULATE, '', now],
     ['RECOMMENDATIONS', 'WATCH', counts.WATCH, '', now],
     ['RECOMMENDATIONS', 'HOLD', counts.HOLD, '', now],
     ['RECOMMENDATIONS', 'AVOID', counts.AVOID, '', now],
-    [
-      'SCORES',
-      'Average Conviction',
-      averageConviction,
-      '0-100',
-      now
-    ],
+    ['SCORES', 'Average Conviction', averageConviction, '0-100', now],
     ['SCORES', 'Average Risk', averageRisk, '0-100', now],
     [
       'SCORES',
@@ -218,9 +311,23 @@ function foBuildBuyZoneExecutiveRows_(results) {
       now
     ],
     [
+      'SCORES',
+      'Average Distance to Entry',
+      averageDistance,
+      'Negative means below target',
+      now
+    ],
+    [
+      'SCORES',
+      'Average Target Discount',
+      averageTargetDiscount,
+      'Configured target discount',
+      now
+    ],
+    [
       'LEADERS',
       'Highest Conviction Candidate',
-      highestConviction ? highestConviction.ticker : '',
+      foExecutiveLabel_(highestConviction),
       highestConviction
         ? 'Conviction ' + highestConviction.convictionScore
         : '',
@@ -229,14 +336,14 @@ function foBuildBuyZoneExecutiveRows_(results) {
     [
       'LEADERS',
       'Lowest Risk Candidate',
-      lowestRisk ? lowestRisk.ticker : '',
+      foExecutiveLabel_(lowestRisk),
       lowestRisk ? 'Risk ' + lowestRisk.riskScore : '',
       now
     ],
     [
       'LEADERS',
       'Closest to Entry',
-      closestToEntry ? closestToEntry.ticker : '',
+      foExecutiveLabel_(closestToEntry),
       closestToEntry
         ? foExecutivePercent_(closestToEntry.distancePct)
         : '',
@@ -245,24 +352,24 @@ function foBuildBuyZoneExecutiveRows_(results) {
     ['', '', '', '', ''],
     [
       'OPPORTUNITY RANKING',
-      'Ticker',
+      'Security / Account',
       'Recommendation',
       'Conviction / Risk / Confidence',
-      'Timestamp'
+      'Executive Rationale'
     ]
   ];
 
   ranked.slice(0, 10).forEach(function(item, index) {
     rows.push([
       'RANK ' + (index + 1),
-      item.ticker,
+      foExecutiveLabel_(item),
       item.recommendation,
       item.convictionScore +
         ' / ' +
         item.riskScore +
         ' / ' +
         item.confidence,
-      now
+      foExecutiveShortReason_(item)
     ]);
   });
 
@@ -270,20 +377,32 @@ function foBuildBuyZoneExecutiveRows_(results) {
   rows.push([
     'CAPITAL DEPLOYMENT QUEUE',
     'Priority',
-    'Ticker',
+    'Security / Account',
     'Recommendation',
-    'Rationale'
+    'Executive Rationale'
   ]);
 
-  foBuildCapitalDeploymentQueue_(ranked).forEach(function(item) {
+  const queue = foBuildCapitalDeploymentQueue_(ranked);
+
+  if (!queue.length) {
     rows.push([
       'QUEUE',
-      item.priority,
-      item.ticker,
-      item.recommendation,
-      item.reason
+      'NO DEPLOYMENT',
+      '',
+      'HOLD',
+      executiveMessage
     ]);
-  });
+  } else {
+    queue.forEach(function(item) {
+      rows.push([
+        'QUEUE',
+        item.priority,
+        item.label,
+        item.recommendation,
+        item.reason
+      ]);
+    });
+  }
 
   rows.push(['', '', '', '', '']);
   rows.push([
@@ -345,30 +464,161 @@ function foExecutiveOpportunityScore_(item) {
 }
 
 function foBuildCapitalDeploymentQueue_(ranked) {
-  return ranked.slice(0, 10).map(function(item) {
-    let priority = 'HOLD';
+  return ranked.filter(function(item) {
+    return foIsExecutiveActionable_(item.recommendation) &&
+      item.priceFreshness === 'FRESH';
+  }).slice(0, 10).map(function(item) {
+    let priority = 'ACCUMULATE';
 
     if (item.recommendation === 'STRONG BUY') {
       priority = 'DEPLOY NOW';
     } else if (item.recommendation === 'BUY') {
       priority = 'BUY SOON';
-    } else if (item.recommendation === 'ACCUMULATE') {
-      priority = 'ACCUMULATE';
-    } else if (item.recommendation === 'WATCH') {
-      priority = 'WATCH';
-    } else if (item.recommendation === 'AVOID') {
-      priority = 'AVOID';
     }
 
     return {
       priority: priority,
-      ticker: item.ticker,
+      label: foExecutiveLabel_(item),
       recommendation: item.recommendation,
-      reason: item.recommendationReason ||
-        ('Conviction ' + item.convictionScore +
-          ', Risk ' + item.riskScore)
+      reason: foExecutiveShortReason_(item)
     };
   });
+}
+
+function foExecutiveDeploymentReadiness_(results) {
+  const actionableFresh = results.filter(function(item) {
+    return foIsExecutiveActionable_(item.recommendation) &&
+      item.priceFreshness === 'FRESH';
+  }).length;
+
+  const missingOrStale = results.filter(function(item) {
+    return item.priceFreshness === 'MISSING' ||
+      item.priceFreshness === 'STALE';
+  }).length;
+
+  if (actionableFresh > 0) return 'READY';
+  if (missingOrStale > 0) return 'NOT READY';
+  return 'MONITOR';
+}
+
+function foExecutiveDeploymentMessage_(
+  results,
+  actionableCount,
+  readiness
+) {
+  if (readiness === 'READY') {
+    return actionableCount +
+      ' actionable candidate(s) supported by fresh pricing.';
+  }
+
+  const staleOrMissing = results.filter(function(item) {
+    return item.priceFreshness === 'STALE' ||
+      item.priceFreshness === 'MISSING';
+  }).length;
+
+  if (staleOrMissing > 0) {
+    return 'No capital deployment recommended. Refresh market prices ' +
+      'before evaluating new positions.';
+  }
+
+  return 'No actionable deployment candidate. Continue monitoring.';
+}
+
+function foExecutiveFreshnessStatus_(
+  fresh,
+  stale,
+  missing,
+  total
+) {
+  if (!total || missing === total) return 'POOR';
+  if (fresh === total) return 'EXCELLENT';
+  if (fresh / total >= 0.75 && missing === 0) return 'GOOD';
+  if (stale + missing <= total / 2) return 'FAIR';
+  return 'POOR';
+}
+
+function foExecutiveDataQualityStatus_(score) {
+  if (score >= 90) return 'EXCELLENT';
+  if (score >= 80) return 'GOOD';
+  if (score >= 70) return 'FAIR';
+  return 'POOR';
+}
+
+function foExecutiveShortReason_(item) {
+  if (!item) return '';
+
+  const parts = [];
+
+  if (item.priceFreshness !== 'FRESH') {
+    parts.push('Price ' + String(item.priceFreshness).toLowerCase());
+  }
+
+  if (item.distancePct !== null) {
+    parts.push(
+      foExecutivePercent_(item.distancePct) + ' from target'
+    );
+  }
+
+  parts.push('Conviction ' + item.convictionScore);
+  parts.push('Risk ' + item.riskScore);
+
+  return parts.join(' | ');
+}
+
+function foExecutiveAccounts_(items) {
+  const unique = {};
+
+  items.forEach(function(item) {
+    const account = String(item.account || 'N/A').trim() || 'N/A';
+    unique[account] = true;
+  });
+
+  return Object.keys(unique).join(', ');
+}
+
+function foExecutiveLabel_(item) {
+  if (!item) return '';
+
+  const account = String(item.account || '').trim();
+  return account
+    ? item.ticker + ' — ' + account
+    : item.ticker;
+}
+
+function foExecutiveWorstFreshness_(items) {
+  const priority = {
+    FRESH: 0,
+    UNKNOWN: 1,
+    STALE: 2,
+    MISSING: 3
+  };
+
+  return items.slice().sort(function(a, b) {
+    return (priority[b.priceFreshness] || 0) -
+      (priority[a.priceFreshness] || 0);
+  })[0].priceFreshness;
+}
+
+function foExecutiveBestRecommendation_(items) {
+  const priority = {
+    'STRONG BUY': 6,
+    BUY: 5,
+    ACCUMULATE: 4,
+    WATCH: 3,
+    HOLD: 2,
+    AVOID: 1
+  };
+
+  return items.slice().sort(function(a, b) {
+    return (priority[b.recommendation] || 0) -
+      (priority[a.recommendation] || 0);
+  })[0].recommendation;
+}
+
+function foIsExecutiveActionable_(recommendation) {
+  return recommendation === 'STRONG BUY' ||
+    recommendation === 'BUY' ||
+    recommendation === 'ACCUMULATE';
 }
 
 function foExecutiveAverage_(items, field) {
@@ -379,6 +629,22 @@ function foExecutiveAverage_(items, field) {
   }, 0);
 
   return Math.round((total / items.length) * 100) / 100;
+}
+
+function foExecutiveAverageNullable_(items, field) {
+  const values = items.map(function(item) {
+    return item[field];
+  }).filter(function(value) {
+    return value !== null && value !== '' && isFinite(Number(value));
+  });
+
+  if (!values.length) return 0;
+
+  const total = values.reduce(function(sum, value) {
+    return sum + Number(value);
+  }, 0);
+
+  return Math.round((total / values.length) * 1000000) / 1000000;
 }
 
 function foExecutiveHighest_(items, field) {
@@ -397,9 +663,23 @@ function foExecutiveLowest_(items, field) {
   })[0];
 }
 
+function foExecutiveClosestDistance_(items) {
+  const values = items.map(function(item) {
+    return item.distancePct;
+  }).filter(function(value) {
+    return value !== null && isFinite(Number(value));
+  });
+
+  if (!values.length) return null;
+
+  return values.slice().sort(function(a, b) {
+    return Math.abs(a) - Math.abs(b);
+  })[0];
+}
+
 function foExecutiveClosestToEntry_(items) {
   const available = items.filter(function(item) {
-    return item.distancePct !== '' &&
+    return item.distancePct !== null &&
       item.targetEntryPrice > 0 &&
       item.currentPrice > 0;
   });
@@ -422,23 +702,38 @@ function foExecutiveNumber_(value) {
   return isFinite(number) ? number : 0;
 }
 
+function foExecutiveNullableNumber_(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  return isFinite(number) ? number : null;
+}
+
 function foExecutivePercent_(value) {
   return (Math.round((Number(value) || 0) * 10000) / 100) + '%';
 }
 
-function foFormatBuyZoneExecutiveDashboard_(sheet, rowCount) {
+function foFormatBuyZoneExecutiveDashboard_(sheet, rows) {
+  const rowCount = rows.length;
+
   sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, 5);
+  sheet.setColumnWidth(1, 180);
+  sheet.setColumnWidth(2, 230);
+  sheet.setColumnWidth(3, 150);
+  sheet.setColumnWidth(4, 280);
+  sheet.setColumnWidth(5, 360);
 
   sheet.getRange(1, 1, 1, 5)
     .setFontWeight('bold')
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
 
-  const values = sheet.getRange(1, 1, rowCount, 1).getValues();
+  sheet.getRange(1, 1, rowCount, 5)
+    .setVerticalAlignment('middle');
+
+  const firstColumn = sheet.getRange(1, 1, rowCount, 1).getValues();
 
   for (let row = 1; row <= rowCount; row++) {
-    const section = String(values[row - 1][0] || '');
+    const section = String(firstColumn[row - 1][0] || '');
 
     if (
       section === 'OPPORTUNITY RANKING' ||
@@ -447,6 +742,46 @@ function foFormatBuyZoneExecutiveDashboard_(sheet, rowCount) {
       sheet.getRange(row, 1, 1, 5)
         .setFontWeight('bold')
         .setBackground('#d9eaf7');
+    }
+
+    if (section === 'STATUS') {
+      sheet.getRange(row, 1, 1, 5)
+        .setFontWeight('bold')
+        .setBackground('#fff2cc');
+    }
+  }
+
+  const statusRange = sheet.getRange(2, 3, 3, 1);
+  const statusRules = [
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('READY')
+      .setBackground('#d9ead3')
+      .setRanges([statusRange])
+      .build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('NOT READY')
+      .setBackground('#f4cccc')
+      .setRanges([statusRange])
+      .build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('MONITOR')
+      .setBackground('#fff2cc')
+      .setRanges([statusRange])
+      .build()
+  ];
+
+  sheet.setConditionalFormatRules(statusRules);
+
+  for (let row = 1; row <= rowCount; row++) {
+    const metric = String(rows[row - 1][1] || '');
+
+    if (
+      metric === 'Buy Zone Coverage' ||
+      metric === 'Fresh Price Coverage' ||
+      metric === 'Average Distance to Entry' ||
+      metric === 'Average Target Discount'
+    ) {
+      sheet.getRange(row, 3).setNumberFormat('0.00%');
     }
   }
 }
@@ -466,9 +801,9 @@ function foRunBuyZoneExecutiveDashboardSmokeTest() {
     FO_SHEETS.BUY_ZONE_EXECUTIVE_SUMMARY
   );
 
-  if (!summary || summary.getLastRow() < 10) {
+  if (!summary || summary.getLastRow() < 15) {
     throw new Error(
-      'Executive Buy Zone Dashboard was not generated correctly.'
+      'Refined Executive Buy Zone Dashboard was not generated correctly.'
     );
   }
 
@@ -478,14 +813,15 @@ function foRunBuyZoneExecutiveDashboardSmokeTest() {
   }).join('\n');
 
   [
-    'Actionable Candidates',
-    'Average Conviction',
+    'Capital Deployment Readiness',
+    'Price Freshness Status',
+    'Buy Zone Coverage',
     'OPPORTUNITY RANKING',
     'CAPITAL DEPLOYMENT QUEUE'
   ].forEach(function(requiredText) {
     if (text.indexOf(requiredText) === -1) {
       throw new Error(
-        'Missing executive dashboard section: ' + requiredText
+        'Missing refined dashboard section: ' + requiredText
       );
     }
   });
