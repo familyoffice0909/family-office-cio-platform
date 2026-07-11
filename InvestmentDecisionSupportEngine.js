@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.4.2 — Materiality, Trend and Allocation Guidance
+ * Wave 2.4.4 — Decision History Retention
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -462,14 +462,20 @@ function foWriteDecisionSupport_(dashboard, decisions) {
 }
 
 function foAppendDecisionHistory_(dashboard, decisions) {
-  const sheet = foEnsureSheet_(
-    dashboard,
-    FO_SHEETS.INVESTMENT_DECISION_HISTORY,
-    foDecisionHistoryHeaders_()
+  const policy = foLoadDecisionHistoryPolicy_(dashboard);
+  const sheet = foPrepareDecisionHistorySheet_(dashboard);
+  const index = foLoadDecisionHistoryIndex_(sheet);
+  const events = foSelectDecisionHistoryEvents_(
+    decisions,
+    index.latest,
+    index.today,
+    policy
   );
 
   const now = new Date();
-  const rows = decisions.map(function(item) {
+  const rows = events.map(function(event) {
+    const item = event.item;
+
     return [
       now,
       item.ticker,
@@ -485,7 +491,9 @@ function foAppendDecisionHistory_(dashboard, decisions) {
       item.action,
       item.allocationBand,
       FO_CONFIG.PLATFORM_VERSION,
-      FO_CONFIG.BASELINE
+      FO_CONFIG.BASELINE,
+      event.eventType,
+      event.signature
     ];
   });
 
@@ -497,6 +505,16 @@ function foAppendDecisionHistory_(dashboard, decisions) {
       rows[0].length
     ).setValues(rows);
   }
+
+  if (policy.maintainAfterAppend) {
+    foMaintainDecisionHistory_(sheet, policy);
+  }
+
+  return {
+    eligibleDecisions: decisions.length,
+    appendedEvents: rows.length,
+    skippedUnchanged: decisions.length - rows.length
+  };
 }
 
 function foDecisionHistoryHeaders_() {
@@ -515,7 +533,9 @@ function foDecisionHistoryHeaders_() {
     'Action',
     'Allocation Band',
     'Platform Version',
-    'Baseline'
+    'Baseline',
+    'Event Type',
+    'State Signature'
   ];
 }
 
