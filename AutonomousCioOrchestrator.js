@@ -34,10 +34,33 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foGetModule('REPORT')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Dashboard', foGetModule('DASHBOARD')));
+
+    const preCertificationSummary =
+      foBuildPreCertificationSummaryWave323_(steps, startedAt);
+
+    foPersistPreCertificationCheckpointWave323_(
+      runId,
+      runRow,
+      startedAt,
+      preCertificationSummary
+    );
+
+    SpreadsheetApp.flush();
+
     steps.push(foRunOrchestratorStep_(runId, 'Production Certification', function() {
       return foRunProductionCertificationWave311({
         orchestratorRunId: runId,
-        orchestratorSteps: steps.slice()
+        orchestratorSteps: steps.slice(),
+        orchestratorExecutionStatus:
+          preCertificationSummary.executionStatus,
+        orchestratorOperationalStatus:
+          preCertificationSummary.operationalStatus,
+        orchestratorCompletedSteps:
+          preCertificationSummary.successfulSteps,
+        orchestratorFailedSteps:
+          preCertificationSummary.failedSteps,
+        orchestratorCheckpointAt:
+          preCertificationSummary.completedAt
       });
     }));
 
@@ -102,6 +125,76 @@ function foRunOrchestratorStep_(runId, stepName, stepFunction) {
       message: error && error.message ? error.message : String(error)
     };
   }
+}
+
+function foBuildPreCertificationSummaryWave323_(steps, startedAt) {
+  const completedAt = new Date();
+  const successfulSteps = steps.filter(function(step) {
+    return step.status === 'SUCCESS';
+  }).length;
+  const failedSteps = steps.filter(function(step) {
+    return step.status === 'FAIL';
+  }).length;
+
+  return {
+    executionStatus: failedSteps > 0 ? 'FAIL' : 'SUCCESS',
+    controlStatus: 'NOT EVALUATED',
+    certificationStatus: 'NOT EVALUATED',
+    operationalStatus: failedSteps > 0
+      ? 'FAILED'
+      : 'READY FOR CERTIFICATION',
+    successfulSteps: successfulSteps,
+    failedSteps: failedSteps,
+    durationSeconds: Math.round(
+      (completedAt.getTime() - startedAt.getTime()) / 1000
+    ),
+    completedAt: completedAt
+  };
+}
+
+function foPersistPreCertificationCheckpointWave323_(
+  runId,
+  runRow,
+  startedAt,
+  summary
+) {
+  const dashboard = foDashboard_();
+  const runSheet = dashboard.getSheetByName(
+    'Autonomous CIO Run Log'
+  );
+
+  if (!runSheet) {
+    throw new Error(
+      'Autonomous CIO Run Log is missing during pre-certification finalization'
+    );
+  }
+
+  const resolvedRow =
+    runRow ||
+    foFindOrchestratorRunRowWave312_(runSheet, runId);
+
+  if (!resolvedRow) {
+    throw new Error(
+      'Unable to locate orchestrator run for pre-certification finalization: ' +
+        runId
+    );
+  }
+
+  runSheet.getRange(resolvedRow, 1, 1, 13).setValues([[
+    runId,
+    startedAt,
+    summary.operationalStatus,
+    summary.successfulSteps,
+    summary.failedSteps,
+    summary.durationSeconds,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    summary.executionStatus,
+    summary.controlStatus,
+    summary.certificationStatus,
+    summary.operationalStatus,
+    summary.completedAt
+  ]]);
 }
 
 function foBuildOrchestratorSummaryWave312_(steps, startedAt) {
