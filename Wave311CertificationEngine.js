@@ -99,10 +99,15 @@ function foValidateCurrentOrchestratorRunWave311_(dashboard, context) {
     : [];
 
   if (activeRunId && inMemorySteps.length) {
+    const executionStatus = String(
+      context.orchestratorExecutionStatus ||
+        'IN PROGRESS'
+    ).trim();
+
     return [
       foEvaluateOrchestratorStepsWave311_(
         activeRunId,
-        'IN PROGRESS',
+        executionStatus,
         inMemorySteps,
         'Current Orchestrator Run'
       )
@@ -194,6 +199,9 @@ function foEvaluateOrchestratorStepsWave311_(
   let failures = 0;
   let observations = 0;
   let reviews = 0;
+  const failureNames = [];
+  const reviewNames = [];
+  const observationNames = [];
 
   steps.forEach(function(step) {
     const status = String(step.status || '').toUpperCase();
@@ -206,6 +214,9 @@ function foEvaluateOrchestratorStepsWave311_(
       message.indexOf('"CERTIFICATIONSTATUS":"NOT CERTIFIED"') >= 0
     ) {
       failures++;
+      failureNames.push(
+        String(step.stepName || 'Unnamed Step')
+      );
       return;
     }
 
@@ -214,6 +225,9 @@ function foEvaluateOrchestratorStepsWave311_(
       message.indexOf('"STATUS":"REVIEW"') >= 0
     ) {
       reviews++;
+      reviewNames.push(
+        String(step.stepName || 'Unnamed Step')
+      );
       return;
     }
 
@@ -226,6 +240,9 @@ function foEvaluateOrchestratorStepsWave311_(
       message.indexOf('PASS WITH OBSERVATIONS') >= 0
     ) {
       observations++;
+      observationNames.push(
+        String(step.stepName || 'Unnamed Step')
+      );
     }
   });
 
@@ -240,13 +257,28 @@ function foEvaluateOrchestratorStepsWave311_(
 
   if (failures > 0) {
     controlStatus = 'FAIL';
-    details += '; embedded control failures: ' + failures;
+    details +=
+      '; embedded control failures: ' +
+      failures +
+      ' [' +
+      failureNames.join(', ') +
+      ']';
   } else if (reviews > 0) {
     controlStatus = 'REVIEW';
-    details += '; review findings: ' + reviews;
+    details +=
+      '; review findings: ' +
+      reviews +
+      ' [' +
+      reviewNames.join(', ') +
+      ']';
   } else if (observations > 0) {
     controlStatus = 'PASS WITH OBSERVATIONS';
-    details += '; observations: ' + observations;
+    details +=
+      '; observations: ' +
+      observations +
+      ' [' +
+      observationNames.join(', ') +
+      ']';
   } else {
     details += '; no embedded control failures';
   }
@@ -325,6 +357,73 @@ function foBuildCertificationSummaryWave311_(controls) {
     observations: observations,
     reviews: reviews,
     failed: failed
+  };
+}
+
+function foRunOrchestratorFinalizationSynchronizationSmokeTestWave323() {
+  const result = foRunAutonomousCioOrchestrator();
+
+  if (result.executionStatus !== 'SUCCESS') {
+    throw new Error(
+      'Expected successful execution, received: ' +
+        result.executionStatus
+    );
+  }
+
+  const dashboard = foDashboard_();
+  const details = dashboard.getSheetByName(
+    'Production Certification Details'
+  );
+
+  if (!details || details.getLastRow() < 2) {
+    throw new Error(
+      'Production Certification Details is missing or empty'
+    );
+  }
+
+  const values = details.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const controlIndex = headers.indexOf('Control');
+  const detailsIndex = headers.indexOf('Details');
+
+  if (controlIndex < 0 || detailsIndex < 0) {
+    throw new Error(
+      'Certification Details columns are incomplete'
+    );
+  }
+
+  const matching = values.slice(1).filter(function(row) {
+    return String(row[controlIndex] || '') ===
+      'Current Orchestrator Run';
+  });
+
+  if (!matching.length) {
+    throw new Error(
+      'Current Orchestrator Run certification control is missing'
+    );
+  }
+
+  const message = String(
+    matching[matching.length - 1][detailsIndex] || ''
+  );
+
+  if (message.indexOf('execution status IN PROGRESS') >= 0) {
+    throw new Error(
+      'Certification still evaluated an IN PROGRESS run'
+    );
+  }
+
+  if (message.indexOf('execution status SUCCESS') < 0) {
+    throw new Error(
+      'Certification did not evaluate the finalized SUCCESS checkpoint: ' +
+        message
+    );
+  }
+
+  return {
+    status: 'PASS',
+    orchestratorResult: result,
+    certificationDetails: message
   };
 }
 
