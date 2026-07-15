@@ -3,6 +3,46 @@
  */
 const FO_A22_RELEASE_TARGET = 'v1.1.0';
 
+/* A2.2.4.1 header compatibility aliases. */
+const FO_A22_POSITION_RISK_HEADERS =
+  typeof FO_A22_POSITION_HEADERS !== 'undefined'
+    ? FO_A22_POSITION_HEADERS
+    : [
+        'Run ID','Timestamp','Rank','Ticker','Account','Quantity','Current Price',
+        'Market Value','Portfolio Weight %','Asset Class','Sector','Country','Currency',
+        'Concentration Score','Data Quality Score','Risk Score','Risk Level',
+        'Primary Risk Driver','Recommendation','Platform Version','Baseline'
+      ];
+
+const FO_A22_PORTFOLIO_RISK_HEADERS =
+  typeof FO_A22_PORTFOLIO_HEADERS !== 'undefined'
+    ? FO_A22_PORTFOLIO_HEADERS
+    : [
+        'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
+        'Largest Position %','Top 5 %','Sector Concentration %',
+        'Currency Concentration %','Stress Test Score','Overall Risk',
+        'Recommendation','Platform Version','Baseline'
+      ];
+
+const FO_A22_RISK_DASHBOARD_HEADERS =
+  typeof FO_A22_DASHBOARD_HEADERS !== 'undefined'
+    ? FO_A22_DASHBOARD_HEADERS
+    : [
+        'Section','Metric','Value','Status','Commentary','Timestamp','Run ID',
+        'Platform Version','Baseline'
+      ];
+
+const FO_A22_RISK_HISTORY_HEADERS =
+  typeof FO_A22_HISTORY_HEADERS !== 'undefined'
+    ? FO_A22_HISTORY_HEADERS
+    : [
+        'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
+        'Largest Position %','Top 5 %','Sector Concentration %',
+        'Currency Concentration %','Stress Test Score','Overall Risk',
+        'Recommendation','Platform Version','Baseline'
+      ];
+
+
 const FO_A22_POSITION_HEADERS = [
   'Run ID','Timestamp','Rank','Ticker','Account','Quantity','Current Price',
   'Market Value','Portfolio Weight %','Asset Class','Sector','Country','Currency',
@@ -477,6 +517,44 @@ function foRunPositionRiskOutputHelperDiagnosticA223() {
   const result = {
     status: missing.length ? 'FAIL' : 'PASS',
     missingFunctions: missing
+  };
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
+
+function foRunPositionRiskHeaderDiagnosticA2241() {
+  const checks = {
+    positionHeaders:
+      typeof FO_A22_POSITION_RISK_HEADERS !== 'undefined' &&
+      Array.isArray(FO_A22_POSITION_RISK_HEADERS) &&
+      FO_A22_POSITION_RISK_HEADERS.length > 0,
+
+    portfolioHeaders:
+      typeof FO_A22_PORTFOLIO_RISK_HEADERS !== 'undefined' &&
+      Array.isArray(FO_A22_PORTFOLIO_RISK_HEADERS) &&
+      FO_A22_PORTFOLIO_RISK_HEADERS.length > 0,
+
+    dashboardHeaders:
+      typeof FO_A22_RISK_DASHBOARD_HEADERS !== 'undefined' &&
+      Array.isArray(FO_A22_RISK_DASHBOARD_HEADERS) &&
+      FO_A22_RISK_DASHBOARD_HEADERS.length > 0,
+
+    historyHeaders:
+      typeof FO_A22_RISK_HISTORY_HEADERS !== 'undefined' &&
+      Array.isArray(FO_A22_RISK_HISTORY_HEADERS) &&
+      FO_A22_RISK_HISTORY_HEADERS.length > 0
+  };
+
+  const failed = Object.keys(checks).filter(function(key) {
+    return !checks[key];
+  });
+
+  const result = {
+    status: failed.length ? 'FAIL' : 'PASS',
+    failedChecks: failed,
+    checks: checks
   };
 
   Logger.log(JSON.stringify(result));
