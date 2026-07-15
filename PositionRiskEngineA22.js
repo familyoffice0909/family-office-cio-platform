@@ -3,44 +3,7 @@
  */
 const FO_A22_RELEASE_TARGET = 'v1.1.0';
 
-/* A2.2.4.1 header compatibility aliases. */
-const FO_A22_POSITION_RISK_HEADERS =
-  typeof FO_A22_POSITION_HEADERS !== 'undefined'
-    ? FO_A22_POSITION_HEADERS
-    : [
-        'Run ID','Timestamp','Rank','Ticker','Account','Quantity','Current Price',
-        'Market Value','Portfolio Weight %','Asset Class','Sector','Country','Currency',
-        'Concentration Score','Data Quality Score','Risk Score','Risk Level',
-        'Primary Risk Driver','Recommendation','Platform Version','Baseline'
-      ];
 
-const FO_A22_PORTFOLIO_RISK_HEADERS =
-  typeof FO_A22_PORTFOLIO_HEADERS !== 'undefined'
-    ? FO_A22_PORTFOLIO_HEADERS
-    : [
-        'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
-        'Largest Position %','Top 5 %','Sector Concentration %',
-        'Currency Concentration %','Stress Test Score','Overall Risk',
-        'Recommendation','Platform Version','Baseline'
-      ];
-
-const FO_A22_RISK_DASHBOARD_HEADERS =
-  typeof FO_A22_DASHBOARD_HEADERS !== 'undefined'
-    ? FO_A22_DASHBOARD_HEADERS
-    : [
-        'Section','Metric','Value','Status','Commentary','Timestamp','Run ID',
-        'Platform Version','Baseline'
-      ];
-
-const FO_A22_RISK_HISTORY_HEADERS =
-  typeof FO_A22_HISTORY_HEADERS !== 'undefined'
-    ? FO_A22_HISTORY_HEADERS
-    : [
-        'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
-        'Largest Position %','Top 5 %','Sector Concentration %',
-        'Currency Concentration %','Stress Test Score','Overall Risk',
-        'Recommendation','Platform Version','Baseline'
-      ];
 
 
 const FO_A22_POSITION_HEADERS = [
@@ -56,6 +19,15 @@ const FO_A22_PORTFOLIO_HEADERS = [
   'Currency Concentration %','Stress Test Score','Overall Risk',
   'Recommendation','Platform Version','Baseline'
 ];
+
+/* A2.2.4.2 canonical output header constants. */
+const FO_A22_HISTORY_HEADERS = [
+  'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
+  'Largest Position %','Top 5 %','Sector Concentration %',
+  'Currency Concentration %','Stress Test Score','Overall Risk',
+  'Recommendation','Platform Version','Baseline'
+];
+
 
 const FO_A22_DASHBOARD_HEADERS = [
   'Section','Metric','Value','Status','Commentary','Timestamp','Run ID',
@@ -152,8 +124,8 @@ function foCalculatePortfolioRiskA22(runId, positions) {
   const rec=foA22PortfolioRecommendation_({riskScore:score,diversificationScore:diversification,largestPositionPct:largest,top5Pct:top5,sectorConcentrationPct:sector,currencyConcentrationPct:currency,averageDataQuality:avgDQ});
   const portfolio={runId:runId,timestamp:new Date(),portfolioValue:foA22Round_(totalValue,2),riskScore:score,diversificationScore:foA22Round_(diversification,1),largestPositionPct:foA22Round_(largest,2),top5Pct:foA22Round_(top5,2),sectorConcentrationPct:foA22Round_(sector,2),currencyConcentrationPct:foA22Round_(currency,2),stressTestScore:foA22Round_(stress,1),overallRisk:level,recommendation:rec};
   const row=[[portfolio.runId,portfolio.timestamp,portfolio.portfolioValue,portfolio.riskScore,portfolio.diversificationScore,portfolio.largestPositionPct,portfolio.top5Pct,portfolio.sectorConcentrationPct,portfolio.currencyConcentrationPct,portfolio.stressTestScore,portfolio.overallRisk,portfolio.recommendation,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE]];
-  foA22ReplaceData_(foA22EnsureSheet_(dashboard,'Portfolio Risk',FO_A22_PORTFOLIO_RISK_HEADERS),row);
-  foA22AppendRows_(foA22EnsureSheet_(dashboard,'Risk History',FO_A22_RISK_HISTORY_HEADERS),row);
+  foA22ReplaceData_(foA22EnsureSheet_(dashboard,'Portfolio Risk',FO_A22_PORTFOLIO_HEADERS),row);
+  foA22AppendRows_(foA22EnsureSheet_(dashboard,'Risk History',FO_A22_HISTORY_HEADERS),row);
   return {status:'SUCCESS',runId:runId,portfolio:portfolio};
 }
 
@@ -524,27 +496,26 @@ function foRunPositionRiskOutputHelperDiagnosticA223() {
 }
 
 
-function foRunPositionRiskHeaderDiagnosticA2241() {
+
+
+
+function foRunPositionRiskHeaderDiagnosticA2242() {
   const checks = {
     positionHeaders:
-      typeof FO_A22_POSITION_RISK_HEADERS !== 'undefined' &&
-      Array.isArray(FO_A22_POSITION_RISK_HEADERS) &&
-      FO_A22_POSITION_RISK_HEADERS.length > 0,
+      Array.isArray(FO_A22_POSITION_HEADERS) &&
+      FO_A22_POSITION_HEADERS.length > 0,
 
     portfolioHeaders:
-      typeof FO_A22_PORTFOLIO_RISK_HEADERS !== 'undefined' &&
-      Array.isArray(FO_A22_PORTFOLIO_RISK_HEADERS) &&
-      FO_A22_PORTFOLIO_RISK_HEADERS.length > 0,
+      Array.isArray(FO_A22_PORTFOLIO_HEADERS) &&
+      FO_A22_PORTFOLIO_HEADERS.length > 0,
 
     dashboardHeaders:
-      typeof FO_A22_RISK_DASHBOARD_HEADERS !== 'undefined' &&
-      Array.isArray(FO_A22_RISK_DASHBOARD_HEADERS) &&
-      FO_A22_RISK_DASHBOARD_HEADERS.length > 0,
+      Array.isArray(FO_A22_DASHBOARD_HEADERS) &&
+      FO_A22_DASHBOARD_HEADERS.length > 0,
 
     historyHeaders:
-      typeof FO_A22_RISK_HISTORY_HEADERS !== 'undefined' &&
-      Array.isArray(FO_A22_RISK_HISTORY_HEADERS) &&
-      FO_A22_RISK_HISTORY_HEADERS.length > 0
+      Array.isArray(FO_A22_HISTORY_HEADERS) &&
+      FO_A22_HISTORY_HEADERS.length > 0
   };
 
   const failed = Object.keys(checks).filter(function(key) {
