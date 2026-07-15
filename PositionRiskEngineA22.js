@@ -3,6 +3,9 @@
  */
 const FO_A22_RELEASE_TARGET = 'v1.1.0';
 
+
+
+
 const FO_A22_POSITION_HEADERS = [
   'Run ID','Timestamp','Rank','Ticker','Account','Quantity','Current Price',
   'Market Value','Portfolio Weight %','Asset Class','Sector','Country','Currency',
@@ -16,6 +19,15 @@ const FO_A22_PORTFOLIO_HEADERS = [
   'Currency Concentration %','Stress Test Score','Overall Risk',
   'Recommendation','Platform Version','Baseline'
 ];
+
+/* A2.2.4.2 canonical output header constants. */
+const FO_A22_HISTORY_HEADERS = [
+  'Run ID','Timestamp','Portfolio Value','Risk Score','Diversification Score',
+  'Largest Position %','Top 5 %','Sector Concentration %',
+  'Currency Concentration %','Stress Test Score','Overall Risk',
+  'Recommendation','Platform Version','Baseline'
+];
+
 
 const FO_A22_DASHBOARD_HEADERS = [
   'Section','Metric','Value','Status','Commentary','Timestamp','Run ID',
@@ -78,52 +90,43 @@ function foCalculatePositionRiskA22(runId) {
 }
 
 function foCalculatePortfolioRiskA22(runId, positions) {
-  runId = runId || foA22RunId_();
-  const ss = foDashboard_();
-  if (!positions || !positions.length) positions = foA22ReadPositionRisk_(ss);
-  if (!positions.length) throw new Error('Position Risk is empty.');
-
-  const total = positions.reduce((s,p)=>s+p.marketValue,0);
-  const byWeight = positions.slice().sort((a,b)=>b.weight-a.weight);
-  const largest = byWeight[0].weight;
-  const top5 = byWeight.slice(0,5).reduce((s,p)=>s+p.weight,0);
-  const sector = foA22MaxGroup_(positions,'sector');
-  const currency = foA22MaxGroup_(positions,'currency');
-  const weightedRisk = positions.reduce((s,p)=>s+p.riskScore*p.weight/100,0);
-  const weightedDQ = positions.reduce((s,p)=>s+p.dataQuality*p.weight/100,0);
-  const diversification = foA22Diversification_(positions.length,largest,top5,sector,currency);
-  const stress = foA22Stress_(positions,largest,sector);
-  const score = foA22Round_(foA22Clamp_(
-    weightedRisk*.50 + foA22Scale_(largest,20)*.18 + foA22Scale_(top5,75)*.10 +
-    foA22Scale_(sector,50)*.10 + foA22Scale_(currency,80)*.05 + (100-weightedDQ)*.07,
-    0,100),1);
-
-  const portfolio = {
-    runId,
-    timestamp:new Date(),
-    portfolioValue:foA22Round_(total,2),
-    riskScore:score,
-    diversificationScore:diversification,
-    largestPositionPct:foA22Round_(largest,2),
-    top5Pct:foA22Round_(top5,2),
-    sectorConcentrationPct:foA22Round_(sector,2),
-    currencyConcentrationPct:foA22Round_(currency,2),
-    stressTestScore:stress,
-    overallRisk:foA22Level_(score),
-    recommendation:foA22PortfolioRecommendation_(score,diversification,largest,top5,sector,currency,weightedDQ)
-  };
-
-  const row = [[
-    portfolio.runId,portfolio.timestamp,portfolio.portfolioValue,portfolio.riskScore,
-    portfolio.diversificationScore,portfolio.largestPositionPct,portfolio.top5Pct,
-    portfolio.sectorConcentrationPct,portfolio.currencyConcentrationPct,
-    portfolio.stressTestScore,portfolio.overallRisk,portfolio.recommendation,
-    FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE
-  ]];
-
-  foA22Replace_(foA22Ensure_(ss,'Portfolio Risk',FO_A22_PORTFOLIO_HEADERS), row);
-  foA22Append_(foA22Ensure_(ss,'Risk History',FO_A22_PORTFOLIO_HEADERS), row);
-  return {status:'SUCCESS', runId, portfolio};
+  runId = runId || foA22NewRunId_();
+  const dashboard = foDashboard_();
+  if (!positions || !positions.length) positions = foA22ReadLatestPositionRisk_(dashboard);
+  if (!positions || !positions.length) throw new Error('A2.2.1: no position-risk records.');
+  const normalized=positions.map(function(p){ return {
+    runId:foA22Text_(p.runId), ticker:foA22Text_(p.ticker)||'UNKNOWN', account:foA22Text_(p.account)||'Unknown',
+    marketValue:foA22FiniteNumber_(p.marketValue,0,'marketValue '+p.ticker),
+    portfolioWeightPct:foA22FiniteNumber_(p.portfolioWeightPct,0,'weight '+p.ticker),
+    riskScore:foA22FiniteNumber_(p.riskScore,0,'riskScore '+p.ticker),
+    dataQualityScore:foA22FiniteNumber_(p.dataQualityScore,0,'dataQuality '+p.ticker),
+    sector:foA22Text_(p.sector)||'Unknown', currency:foA22Text_(p.currency)||'Unknown',
+    riskRating:foA22Text_(p.riskRating), notes:foA22Text_(p.notes)
+  };});
+  const totalValue=normalized.reduce(function(s,p){return s+p.marketValue;},0);
+  if (!Number.isFinite(totalValue)||totalValue<=0) throw new Error('A2.2.1 invalid portfolio value: '+totalValue);
+  normalized.forEach(function(p){p.portfolioWeightPct=foA22Round_(p.marketValue/totalValue*100,4);});
+  const sorted=normalized.slice().sort(function(a,b){return b.portfolioWeightPct-a.portfolioWeightPct;});
+  const largest=foA22FiniteNumber_(sorted[0].portfolioWeightPct,0,'largest');
+  const top5=sorted.slice(0,5).reduce(function(s,p){return s+p.portfolioWeightPct;},0);
+  const sector=foA22SafeMaxGroupWeight_(normalized,'sector');
+  const currency=foA22SafeMaxGroupWeight_(normalized,'currency');
+  const weightedRisk=normalized.reduce(function(s,p){return s+p.riskScore*(p.portfolioWeightPct/100);},0);
+  const avgDQ=normalized.reduce(function(s,p){return s+p.dataQualityScore*(p.portfolioWeightPct/100);},0);
+  const diversification=foA22DiversificationScore_(normalized.length,largest,top5,sector,currency);
+  const stress=foA22StressScore_(normalized,largest,sector);
+  const inputs={totalValue:totalValue,largestPositionPct:largest,top5Pct:top5,sectorConcentrationPct:sector,currencyConcentrationPct:currency,weightedPositionRisk:weightedRisk,averageDataQuality:avgDQ,diversificationScore:diversification,stressTestScore:stress};
+  Object.keys(inputs).forEach(function(k){if(!Number.isFinite(Number(inputs[k]))) throw new Error('A2.2.1 non-finite input '+k+'='+inputs[k]);});
+  Logger.log('A2.2.1 portfolio inputs: '+JSON.stringify(inputs));
+  const score=foA22Round_(foA22Clamp_(weightedRisk*0.50+foA22ScaleTo100_(largest,20)*0.18+foA22ScaleTo100_(top5,75)*0.10+foA22ScaleTo100_(sector,50)*0.10+foA22ScaleTo100_(currency,80)*0.05+(100-avgDQ)*0.07,0,100),1);
+  const level=foA22RiskLevel_(score);
+  if(level==='UNAVAILABLE') throw new Error('A2.2.1 unable to classify score.');
+  const rec=foA22PortfolioRecommendation_({riskScore:score,diversificationScore:diversification,largestPositionPct:largest,top5Pct:top5,sectorConcentrationPct:sector,currencyConcentrationPct:currency,averageDataQuality:avgDQ});
+  const portfolio={runId:runId,timestamp:new Date(),portfolioValue:foA22Round_(totalValue,2),riskScore:score,diversificationScore:foA22Round_(diversification,1),largestPositionPct:foA22Round_(largest,2),top5Pct:foA22Round_(top5,2),sectorConcentrationPct:foA22Round_(sector,2),currencyConcentrationPct:foA22Round_(currency,2),stressTestScore:foA22Round_(stress,1),overallRisk:level,recommendation:rec};
+  const row=[[portfolio.runId,portfolio.timestamp,portfolio.portfolioValue,portfolio.riskScore,portfolio.diversificationScore,portfolio.largestPositionPct,portfolio.top5Pct,portfolio.sectorConcentrationPct,portfolio.currencyConcentrationPct,portfolio.stressTestScore,portfolio.overallRisk,portfolio.recommendation,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE]];
+  foA22ReplaceData_(foA22EnsureSheet_(dashboard,'Portfolio Risk',FO_A22_PORTFOLIO_HEADERS),row);
+  foA22AppendRows_(foA22EnsureSheet_(dashboard,'Risk History',FO_A22_HISTORY_HEADERS),row);
+  return {status:'SUCCESS',runId:runId,portfolio:portfolio};
 }
 
 function foBuildRiskDashboardA22(runId, portfolio, positions) {
@@ -224,6 +227,307 @@ function foA22Map_(h){return h.reduce((m,x,i)=>(m[String(x).trim()]=i,m),{});}
 function foA22Cell_(r,h,k){return h[k]===undefined?'':r[h[k]];}
 function foA22Text_(v){return String(v===null||v===undefined?'':v).trim();}
 function foA22Num_(v){if(typeof v==='number')return isFinite(v)?v:0;const n=Number(String(v||'').replace(/[$,%\s]/g,'').replace(/,/g,''));return isFinite(n)?n:0;}
-function foA22Round_(v,d){const f=Math.pow(10,d||0);return Math.round(v*f)/f;}
-function foA22Clamp_(v,a,b){return Math.min(b,Math.max(a,v));}
+function foA22Round_(value, decimals) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+  const places = Number.isFinite(Number(decimals)) ? Number(decimals) : 0;
+  const factor = Math.pow(10, places);
+  return Math.round(numericValue * factor) / factor;
+}
+function foA22Clamp_(value, minValue, maxValue) {
+  const n=Number(value), min=Number(minValue), max=Number(maxValue);
+  if (![n,min,max].every(Number.isFinite)) throw new Error('A2.2.1 clamp received non-finite input.');
+  return Math.min(max, Math.max(min, n));
+}
 function foA22Scale_(v,b){return foA22Clamp_(v/b*100,0,100);}
+
+
+function foA22FiniteNumber_(value, fallback, fieldName) {
+  const fb=Number.isFinite(Number(fallback))?Number(fallback):0;
+  let n;
+  if (typeof value === 'number') n=value; else {
+    const cleaned=String(value===null||value===undefined?'':value).replace(/[$,%\s]/g,'').replace(/,/g,'');
+    n=cleaned===''?fb:Number(cleaned);
+  }
+  if (!Number.isFinite(n)) { Logger.log('A2.2.1 substituted non-finite value for '+(fieldName||'field')+': '+value); return fb; }
+  return n;
+}
+
+function foA22SafeMaxGroupWeight_(positions, fieldName) {
+  const groups={};
+  positions.forEach(function(p){ const k=foA22Text_(p[fieldName])||'Unknown'; groups[k]=(groups[k]||0)+foA22FiniteNumber_(p.portfolioWeightPct,0,fieldName+' '+p.ticker); });
+  return foA22Round_(Object.keys(groups).reduce(function(m,k){ return Math.max(m,foA22FiniteNumber_(groups[k],0,k)); },0),4);
+}
+
+
+function foA22Number_(value) {
+  return foA22FiniteNumber_(value, 0);
+}
+
+
+function foA22ScaleTo100_(value, breachValue) {
+  const n=Number(value), b=Number(breachValue);
+  if (!Number.isFinite(n)||!Number.isFinite(b)||b<=0) throw new Error('A2.2.1 scale received invalid input.');
+  return foA22Clamp_(n / b * 100, 0, 100);
+}
+
+
+function foA22RiskLevel_(score) {
+  const n=Number(score);
+  if (!Number.isFinite(n)) return 'UNAVAILABLE';
+  if (n>=75) return 'CRITICAL';
+  if (n>=55) return 'HIGH';
+  if (n>=35) return 'MODERATE';
+  return 'LOW';
+}
+
+
+function foA22MetricStatus_(metric, value) {
+  const n=Number(value);
+  if (!Number.isFinite(n)) return 'UNAVAILABLE';
+  if (metric === 'diversification') { if (n>=75) return 'GOOD'; if (n>=55) return 'REVIEW'; return 'WEAK'; }
+  const t={risk:[35,55,75],largest:[10,15,20],top5:[55,65,75],sector:[35,40,50],currency:[60,70,80]}[metric] || [35,55,75];
+  if (n>=t[2]) return 'CRITICAL';
+  if (n>=t[1]) return 'HIGH';
+  if (n>=t[0]) return 'REVIEW';
+  return 'PASS';
+}
+
+
+function foA22DiversificationScore_(positionCount, largestPositionPct, top5Pct, sectorConcentrationPct, currencyConcentrationPct) {
+  const count = foA22FiniteNumber_(positionCount, 0, 'positionCount');
+  const largest = foA22FiniteNumber_(largestPositionPct, 0, 'largestPositionPct');
+  const top5 = foA22FiniteNumber_(top5Pct, 0, 'top5Pct');
+  const sector = foA22FiniteNumber_(sectorConcentrationPct, 0, 'sectorConcentrationPct');
+  const currency = foA22FiniteNumber_(currencyConcentrationPct, 0, 'currencyConcentrationPct');
+
+  let score = 100;
+  score -= Math.max(0, largest - 10) * 1.8;
+  score -= Math.max(0, top5 - 55) * 0.8;
+  score -= Math.max(0, sector - 35) * 0.8;
+  score -= Math.max(0, currency - 70) * 0.4;
+
+  if (count < 5) score -= 20;
+  else if (count < 8) score -= 10;
+  else if (count >= 12) score += 5;
+
+  return foA22Round_(foA22Clamp_(score, 0, 100), 1);
+}
+
+
+function foA22StressScore_(positions, largestPositionPct, sectorConcentrationPct) {
+  if (!positions || !positions.length) return 0;
+
+  const largest = foA22FiniteNumber_(largestPositionPct, 0, 'stress largest');
+  const sector = foA22FiniteNumber_(sectorConcentrationPct, 0, 'stress sector');
+
+  const speculativeWeight = positions.filter(function(position) {
+    const ticker = foA22Text_(position.ticker).toUpperCase();
+    const text = (foA22Text_(position.riskRating) + ' ' + foA22Text_(position.notes)).toUpperCase();
+    return ['QNC','ONE','QBTS','RGTI'].indexOf(ticker) >= 0 || text.indexOf('SPECULATIVE') >= 0;
+  }).reduce(function(sum, position) {
+    return sum + foA22FiniteNumber_(position.portfolioWeightPct, 0, 'speculative weight');
+  }, 0);
+
+  const score = 20
+    + foA22ScaleTo100_(largest, 20) * 0.30
+    + foA22ScaleTo100_(sector, 50) * 0.25
+    + foA22ScaleTo100_(speculativeWeight, 25) * 0.45;
+
+  return foA22Round_(foA22Clamp_(score, 0, 100), 1);
+}
+
+
+function foRunPositionRiskHelperDiagnosticA222() {
+  const tests = {
+    diversification: typeof foA22DiversificationScore_ === 'function',
+    stress: typeof foA22StressScore_ === 'function',
+    recommendation: typeof foA22PortfolioRecommendation_ === 'function',
+    finiteNumber: typeof foA22FiniteNumber_ === 'function',
+    safeGroupWeight: typeof foA22SafeMaxGroupWeight_ === 'function'
+  };
+
+  const missing = Object.keys(tests).filter(function(key) { return !tests[key]; });
+  const result = {status: missing.length ? 'FAIL' : 'PASS', missingFunctions: missing};
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
+
+function foA22EnsureSheet_(spreadsheet, sheetName, headers) {
+  if (!spreadsheet) {
+    throw new Error('A2.2.3 ensure-sheet helper received no spreadsheet.');
+  }
+
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+
+  const currentHeaders = sheet.getLastColumn() > 0
+    ? sheet.getRange(
+        1,
+        1,
+        1,
+        Math.max(sheet.getLastColumn(), headers.length)
+      ).getDisplayValues()[0].slice(0, headers.length)
+    : [];
+
+  if (
+    !sheet.getLastRow() ||
+    currentHeaders.join('|') !== headers.join('|')
+  ) {
+    sheet.clear();
+    sheet.getRange(
+      1,
+      1,
+      1,
+      headers.length
+    ).setValues([headers]);
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.getRange(
+    1,
+    1,
+    1,
+    headers.length
+  ).setFontWeight('bold');
+
+  return sheet;
+}
+
+
+function foA22ReplaceData_(sheet, rows) {
+  if (!sheet) {
+    throw new Error('A2.2.3 replace-data helper received no worksheet.');
+  }
+
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn < 1) {
+    throw new Error(
+      'A2.2.3 replace-data helper cannot preserve headers: worksheet has no columns.'
+    );
+  }
+
+  const headers = sheet.getRange(
+    1,
+    1,
+    1,
+    lastColumn
+  ).getValues();
+
+  sheet.clearContents();
+  sheet.getRange(
+    1,
+    1,
+    1,
+    headers[0].length
+  ).setValues(headers);
+
+  if (rows && rows.length) {
+    sheet.getRange(
+      2,
+      1,
+      rows.length,
+      rows[0].length
+    ).setValues(rows);
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, sheet.getLastColumn());
+}
+
+
+function foA22AppendRows_(sheet, rows) {
+  if (!sheet) {
+    throw new Error('A2.2.3 append helper received no worksheet.');
+  }
+
+  if (!rows || !rows.length) return;
+
+  sheet.getRange(
+    sheet.getLastRow() + 1,
+    1,
+    rows.length,
+    rows[0].length
+  ).setValues(rows);
+}
+
+
+function foA22SchemaMatches_(sheet, expectedHeaders) {
+  if (
+    !sheet ||
+    sheet.getLastColumn() < expectedHeaders.length
+  ) {
+    return false;
+  }
+
+  const actualHeaders = sheet.getRange(
+    1,
+    1,
+    1,
+    expectedHeaders.length
+  ).getDisplayValues()[0];
+
+  return actualHeaders.join('|') === expectedHeaders.join('|');
+}
+
+
+function foRunPositionRiskOutputHelperDiagnosticA223() {
+  const tests = {
+    ensureSheet: typeof foA22EnsureSheet_ === 'function',
+    replaceData: typeof foA22ReplaceData_ === 'function',
+    appendRows: typeof foA22AppendRows_ === 'function',
+    schemaMatches: typeof foA22SchemaMatches_ === 'function'
+  };
+
+  const missing = Object.keys(tests).filter(function(key) {
+    return !tests[key];
+  });
+
+  const result = {
+    status: missing.length ? 'FAIL' : 'PASS',
+    missingFunctions: missing
+  };
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
+
+
+
+
+function foRunPositionRiskHeaderDiagnosticA2242() {
+  const checks = {
+    positionHeaders:
+      Array.isArray(FO_A22_POSITION_HEADERS) &&
+      FO_A22_POSITION_HEADERS.length > 0,
+
+    portfolioHeaders:
+      Array.isArray(FO_A22_PORTFOLIO_HEADERS) &&
+      FO_A22_PORTFOLIO_HEADERS.length > 0,
+
+    dashboardHeaders:
+      Array.isArray(FO_A22_DASHBOARD_HEADERS) &&
+      FO_A22_DASHBOARD_HEADERS.length > 0,
+
+    historyHeaders:
+      Array.isArray(FO_A22_HISTORY_HEADERS) &&
+      FO_A22_HISTORY_HEADERS.length > 0
+  };
+
+  const failed = Object.keys(checks).filter(function(key) {
+    return !checks[key];
+  });
+
+  const result = {
+    status: failed.length ? 'FAIL' : 'PASS',
+    failedChecks: failed,
+    checks: checks
+  };
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}

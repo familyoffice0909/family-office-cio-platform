@@ -1,10 +1,10 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v1.0.0',
-  RELEASE_NAME: 'Operational Analytics',
+  PLATFORM_VERSION: 'v1.1.0',
+  RELEASE_NAME: 'Position Risk Calculation Engine',
   BASELINE: 'CB-002',
-  BUILD: '2026.07.08.001',
-  ENVIRONMENT: 'Production Candidate',
+  BUILD: '2026.07.15.003',
+  ENVIRONMENT: 'Production',
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
   ENGINE_VERSION: 'v3.0.0',
