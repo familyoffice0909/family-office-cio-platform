@@ -90,7 +90,7 @@ function foCalculatePositionRiskA22(runId) {
 }
 
 function foCalculatePortfolioRiskA22(runId, positions) {
-  runId = runId || foA22NewRunId_();
+  runId = runId || foA22RunId_();
   const dashboard = foDashboard_();
   if (!positions || !positions.length) positions = foA22ReadLatestPositionRisk_(dashboard);
   if (!positions || !positions.length) throw new Error('A2.2.1: no position-risk records.');
