@@ -511,8 +511,20 @@ function foA233ReadinessRows_(readiness, risk, policy, run) {
       run.platformVersion, run.baseline],
     [run.runId, run.timestamp, 'Unified Execution Status',
       policy.executionStatus,
-      policy.executionStatus.indexOf('BLOCKED') === 0
-        ? 'BLOCKED' : 'AVAILABLE',
+      (
+        policy.executionStatus.indexOf('BLOCKED') === 0 ||
+        policy.executionStatus === 'RISK REDUCTION REQUIRED'
+      )
+        ? 'BLOCKED'
+        : (
+          policy.executionStatus === 'CONDITIONAL'
+            ? 'CONDITIONAL'
+            : (
+              policy.executionStatus === 'EXECUTABLE'
+                ? 'AVAILABLE'
+                : 'INFORMATIONAL'
+            )
+        ),
       'Authoritative execution state for executive reports.',
       run.platformVersion, run.baseline]
   ];
@@ -617,6 +629,35 @@ function foRunExecutiveDecisionIntegrationValidationA233(expectedRunId) {
       ? conflictSheet.getLastRow() - 1 : 0;
     return expected === actual;
   }, 'HIGH');
+  suite.add(
+    'CONTROL',
+    'Unified execution status classification is valid',
+    function() {
+      const rows = foA233SheetRows_(readinessSheet);
+      const row = rows.filter(function(item) {
+        return foA233Text_(item.Control) ===
+          'Unified Execution Status';
+      })[0] || {};
+      const value = foA233Text_(row.Value).toUpperCase();
+      const status = foA233Text_(row.Status).toUpperCase();
+
+      if (
+        value.indexOf('BLOCKED') === 0 ||
+        value === 'RISK REDUCTION REQUIRED'
+      ) {
+        return status === 'BLOCKED';
+      }
+      if (value === 'CONDITIONAL') {
+        return status === 'CONDITIONAL';
+      }
+      if (value === 'EXECUTABLE') {
+        return status === 'AVAILABLE';
+      }
+      return status === 'INFORMATIONAL';
+    },
+    'CRITICAL'
+  );
+
   suite.add('CONTROL', 'Coverage values are in range', function() {
     const state = foA233SheetRows_(stateSheet)[0] || {};
     return [
