@@ -332,11 +332,11 @@ function foA240BuildModel_(
     'RISK',
     priority,
     'Largest Position',
-    largestTicker + ' — ' + foA240PercentText_(largestPct),
+    largestTicker + ' — ' + foA240PercentPointsText_(largestPct),
     priorArchive['Largest Position Ticker'] || '',
     '',
-    largestPct >= 0.30 ? 'CRITICAL' : (largestPct >= 0.20 ? 'HIGH' : 'NORMAL'),
-    largestTicker + ' represents ' + foA240PercentText_(largestPct) +
+    largestPct >= 30 ? 'CRITICAL' : (largestPct >= 20 ? 'HIGH' : 'NORMAL'),
+    largestTicker + ' represents ' + foA240PercentPointsText_(largestPct) +
       ' of portfolio value.',
     'Executive Decision State A233'
   );
@@ -543,7 +543,7 @@ function foA240BuildModel_(
       'Trigger: ' + trigger +
         ' | Invalidation: ' + invalidation +
         ' | Risk impact: ' + riskImpact +
-        ' | Portfolio weight: ' + foA240PercentText_(positionWeight) +
+        ' | Portfolio weight: ' + foA240PercentPointsText_(positionWeight) +
         ' | Confidence: ' + foA240Number_(card.Confidence) +
         ' | Materiality: ' + foA240Number_(card['Materiality Score']) +
         ' | ' + foA240Text_(card.Commentary),
@@ -637,7 +637,7 @@ function foRunWeeklyCioReportValidationA240(
 ) {
   const dashboard = foDashboard_();
   const suite = foCreateValidationSuiteA230(
-    'A2.4.0.1 Weekly Report Output Hardening'
+    'A2.4.0.2 Percentage Unit Normalization'
   );
   const reportSheet = dashboard.getSheetByName(
     FO_SHEETS.WEEKLY_CIO_REPORT_A240
@@ -828,7 +828,7 @@ function foRunWeeklyCioReportValidationA240(
           row['Evidence / Commentary']
         );
         return expected === null ||
-          Math.abs(expected - reported) <= 0.0001;
+          Math.abs(expected - reported) <= 0.01;
       });
     }, 'CRITICAL');
 
@@ -859,6 +859,82 @@ function foRunWeeklyCioReportValidationA240(
         return current === 'NONE' || Math.abs(foA240Number_(current)) > FO_A2401_ZERO_TOLERANCE;
       });
     }, 'HIGH');
+
+
+  suite.add('PERCENTAGE UNIT',
+    'Portfolio weights are valid percentage points', function() {
+      const reportedWeights = foA240SheetRows_(reportSheet)
+        .filter(function(row) {
+          return row.Section === 'CURRENT HOLDING ACTION';
+        })
+        .map(function(row) {
+          return foA240ExtractPortfolioWeight_(
+            row['Evidence / Commentary']
+          );
+        });
+      return reportedWeights.length > 0 &&
+        reportedWeights.every(function(weight) {
+          return Number.isFinite(weight) && weight >= 0 && weight <= 100;
+        });
+    }, 'CRITICAL');
+
+  suite.add('RECONCILIATION',
+    'Portfolio weights total approximately 100 percent', function() {
+      const reportedWeights = foA240SheetRows_(reportSheet)
+        .filter(function(row) {
+          return row.Section === 'CURRENT HOLDING ACTION';
+        })
+        .map(function(row) {
+          return foA240ExtractPortfolioWeight_(
+            row['Evidence / Commentary']
+          );
+        });
+      if (!reportedWeights.length) return false;
+      const total = reportedWeights.reduce(function(sum, weight) {
+        return sum + weight;
+      }, 0);
+      return Math.abs(total - 100) <= 0.25;
+    }, 'CRITICAL');
+
+  suite.add('RECONCILIATION',
+    'Largest position percentage matches Position Risk', function() {
+      const state = foA240RowsForRun_(
+        stateSheet, 'Run ID', expectedDecisionRunId
+      )[0] || {};
+      const ticker = foA240Text_(
+        state['Largest Position Ticker']
+      ).toUpperCase();
+      const sourcePct = foA240Number_(state['Largest Position %']);
+      const row = foA240FindReportMetric_(reportSheet, 'Largest Position');
+      const current = foA240Text_(row['Current Value / Action']);
+      const match = current.match(/—\s*(-?[0-9.]+)%/);
+      const reportedPct = match ? Number(match[1]) : NaN;
+      const weights = foA240PositionRiskMap_(dashboard);
+      const riskPct = Object.prototype.hasOwnProperty.call(
+        weights.tickerTotals, ticker
+      ) ? weights.tickerTotals[ticker] : null;
+      return Number.isFinite(reportedPct) &&
+        reportedPct >= 0 && reportedPct <= 100 &&
+        Math.abs(reportedPct - sourcePct) <= 0.01 &&
+        (riskPct === null || Math.abs(reportedPct - riskPct) <= 0.02);
+    }, 'CRITICAL');
+
+  suite.add('PRESENTATION',
+    'Report contains no implausible portfolio percentages', function() {
+      return foA240SheetRows_(reportSheet).every(function(row) {
+        if (row.Section !== 'CURRENT HOLDING ACTION' &&
+            row['Metric / Ticker'] !== 'Largest Position') {
+          return true;
+        }
+        const text = foA240Text_(row['Current Value / Action']) + ' ' +
+          foA240Text_(row['Evidence / Commentary']);
+        const matches = text.match(/-?[0-9]+(?:\.[0-9]+)?%/g) || [];
+        return matches.every(function(token) {
+          const value = Number(token.replace('%', ''));
+          return Number.isFinite(value) && value >= 0 && value <= 100;
+        });
+      });
+    }, 'CRITICAL');
 
   const result = suite.run();
   const validationRun = foCreateRunMetadataA230('WEEKLY-CIO-VAL');
@@ -919,7 +995,7 @@ function foRunWeeklyCioReportSmokeTestA240() {
   }
   return {
     status: 'PASS',
-    wave: 'A2.4.0.1',
+    wave: 'A2.4.0.2',
     releaseTarget: FO_A240_RELEASE_TARGET,
     reportId: result.reportId,
     decisionRunId: result.decisionRunId,
@@ -1094,7 +1170,7 @@ function foA240ResolvePositionWeightFromLabel_(map, label) {
 
 function foA240ExtractPortfolioWeight_(commentary) {
   const match = foA240Text_(commentary).match(/Portfolio weight:\s*(-?[0-9.]+)%/i);
-  return match ? Number(match[1]) / 100 : 0;
+  return match ? Number(match[1]) : 0;
 }
 
 function foA240CleanNumericText_(text) {
@@ -1375,8 +1451,16 @@ function foA240Number_(value) {
   return percentage ? number / 100 : number;
 }
 
-function foA240PercentText_(value) {
+function foA240RatioPercentText_(value) {
   return (foA240Number_(value) * 100).toFixed(2) + '%';
+}
+
+function foA240PercentPointsText_(value) {
+  return foA240Number_(value).toFixed(2) + '%';
+}
+
+function foA240PercentText_(value) {
+  return foA240RatioPercentText_(value);
 }
 
 function foA240Text_(value) {
