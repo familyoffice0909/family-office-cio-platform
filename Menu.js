@@ -56,6 +56,9 @@ function onOpen() {
     .addItem('Run Executive CIO Report', 'foRunExecutiveReportEngine')
     .addItem('Executive Report Smoke Test', 'foRunExecutiveReportSmokeTest')
     .addSeparator()
+    .addItem('Run Weekly CIO Report A240', 'foRunWeeklyCioReportA240')
+    .addItem('Weekly CIO Report Smoke Test A240', 'foRunWeeklyCioReportSmokeTestA240')
+    .addSeparator()
     .addItem('Archive Smoke Test Report', 'foArchiveSmokeTestReport');
 
   const orchestratorMenu = ui.createMenu('Orchestrator')
