@@ -42,9 +42,9 @@ describe('Wave A2.4.0 static integration', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
 
-    expect(config).toContain("PLATFORM_VERSION: 'v1.3.0'");
+    expect(config).toContain("PLATFORM_VERSION: 'v3.0.1'");
     expect(config).toContain("BASELINE: 'CB-002'");
-    expect(packageJson.version).toBe('1.3.0');
+    expect(packageJson.version).toBe('3.0.1');
   });
 
   test('Sprint 2.5.0 executive change detection reuses archive comparisons', () => {
