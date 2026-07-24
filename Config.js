@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v1.3.0',
-  RELEASE_NAME: 'Unified Weekly CIO Reporting',
+  PLATFORM_VERSION: 'v3.0.1',
+  RELEASE_NAME: 'Reporting Engine Write-Back Readiness',
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.16.1300',
@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.0.0',
+  ENGINE_VERSION: 'v3.0.1',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
