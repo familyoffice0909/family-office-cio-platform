@@ -4,18 +4,52 @@ All notable changes to the Family Office CIO Platform are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/).
 
+## [2.9.0-lab] - 2026-07-21
+
+### Completed
+- Sprint 2.9.0 — Materiality and Prioritization Intelligence
+- Feature integration into `develop`
+- Promotion from `develop` into lab `main`
+- Synchronization of lab `main` back into `develop`
+- Production promotion and GitHub release `v2.9.0`
+
+### Validation
+- Platform validator passed
+- ESLint passed
+- Jest passed
+- Sprint 2.9.0 release manifest synchronized with the production repository
+
+### Baseline
+- Lab baseline tag: `v2.9.0-lab`
+- Production baseline tag: `v2.9.0`
+- Future Sprint 3.0.0 development must branch from the synchronized post-v2.9.0 `develop` baseline
+
 ## [Unreleased]
+
+### Fixed
+- Added fail-closed executive-report write-back verification for the Portfolio Snapshot, Dashboard archive, and Investment Ledger Report Archive in Reporting Engine Enhancement v3.0.1
+- Standardized persistence status semantics so expected non-events are not reported as failures
+- Reconciled repository metadata, static tests, validation, and CI with the released `v1.3.0` / `CB-002` baseline in wave R1.3.0.1
 
 ### Added
 - Enterprise engineering documentation
+- Institutional engineering governance for the SDLC, readiness and completion gates, release governance, repository quality, ownership, ADRs, and the five-epic roadmap in wave R1.3.0.4
 - Repository governance and release checklist
 - Automated module, menu, orchestrator, version, manifest, duplicate-function, and secret validation
 - CI-generated smoke-test inventory artifact
+- Fail-closed LAB/PRODUCTION runtime configuration and governed Dashboard/Ledger workbook access for wave R1.3.0.2
+- Runtime locking for the Autonomous CIO Orchestrator, Production Certification, and report-archive workflows; other mutating paths are outside the approved reduced scope
+- Explicit Apps Script OAuth scopes and Jest coverage for runtime guard and lock behavior
 
 ### Planned
 - Buy Zone Intelligence hardening
 - Decision explainability
 - Recommendation change detection
+
+## [1.3.0] - 2026-07-16
+
+### Added
+- Unified Weekly CIO Reporting with A2.4.0.2 percentage normalization and executive-output rounding controls
 
 ## [1.0.0] - 2026-07-10
 
