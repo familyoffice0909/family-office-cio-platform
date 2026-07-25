@@ -5,6 +5,8 @@
 **/scripts/**
 **/tests/**
 **/artifacts/**
+**/.sprint-*-backup/**
+.sprint-*-backup/**
 .env
 .env.*
 .clasprc.json
@@ -15,5 +17,3 @@ README.md
 package.json
 package-lock.json
 eslint.config.js
-
-.sprint-1-2-backup/**

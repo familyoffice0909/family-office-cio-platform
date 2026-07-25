@@ -37,9 +37,9 @@ function foRunPortfolioDataSynchronization() {
     );
 
     const sources = [
-      { sheetName: 'TFSA Holdings', account: 'TFSA' },
-      { sheetName: 'LIRA Holdings', account: 'LIRA' },
-      { sheetName: 'Interactive Brokers', account: 'Interactive Brokers' }
+      { sheetName: 'TFSA Holdings', account: 'TFSA', required: true },
+      { sheetName: 'LIRA Holdings', account: 'LIRA', required: true },
+      { sheetName: 'Interactive Brokers', account: 'Interactive Brokers', required: false }
     ];
 
     const records = [];
@@ -56,7 +56,12 @@ function foRunPortfolioDataSynchronization() {
       sourceSummaries.push(result.summary);
     });
 
+    foAssertRequiredPortfolioSources_(sourceSummaries);
+
     const deduplicated = foConsolidatePortfolioRecords_(records, masterHeaders);
+    if (deduplicated.rows.length === 0) {
+      throw new Error('No active holdings were resolved; Portfolio Master was not modified.');
+    }
     foReplacePortfolioMasterRows_(master, masterHeaders, deduplicated.rows);
 
     const reconciliation = foWritePortfolioSynchronizationReport_(
@@ -90,6 +95,22 @@ function foRunPortfolioDataSynchronization() {
   } catch (error) {
     foError_(module, 'Failure', error);
     throw error;
+  }
+}
+
+
+function foAssertRequiredPortfolioSources_(summaries) {
+  const failures = summaries.filter(function(summary) {
+    return summary.required && (summary.status !== 'READ' || summary.activeRows <= 0);
+  });
+  if (failures.length > 0) {
+    throw new Error(
+      'Required operational holdings source(s) are unavailable or empty: ' +
+      failures.map(function(item) {
+        return item.source + ' [' + item.status + ']';
+      }).join(', ') +
+      '. Portfolio Master was not modified.'
+    );
   }
 }
 
@@ -136,7 +157,8 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
       summary: {
         source: source.sheetName,
         account: source.account,
-        status: 'NOT FOUND',
+        status: source.required ? 'REQUIRED SOURCE NOT FOUND' : 'NOT FOUND',
+        required: Boolean(source.required),
         rowsRead: 0,
         activeRows: 0,
         quantity: 0,
@@ -152,7 +174,8 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
       summary: {
         source: source.sheetName,
         account: source.account,
-        status: 'EMPTY',
+        status: source.required ? 'REQUIRED SOURCE EMPTY' : 'EMPTY',
+        required: Boolean(source.required),
         rowsRead: 0,
         activeRows: 0,
         quantity: 0,
@@ -276,7 +299,8 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
     summary: {
       source: source.sheetName,
       account: source.account,
-      status: 'READ',
+      status: records.length > 0 ? 'READ' : (source.required ? 'REQUIRED SOURCE HAS NO ACTIVE ROWS' : 'READ'),
+      required: Boolean(source.required),
       rowsRead: values.length - 1,
       activeRows: records.length,
       quantity: totalQuantity,
@@ -395,7 +419,7 @@ function foWritePortfolioSynchronizationReport_(dashboard, sourceSummaries, cons
   let failures = 0;
 
   sourceSummaries.forEach(function(summary) {
-    const status = summary.status === 'READ' ? 'PASS' : 'FAIL';
+    const status = summary.status === 'READ' && (!summary.required || summary.activeRows > 0) ? 'PASS' : 'FAIL';
     if (status === 'FAIL') failures++;
     rows.push([
       now,

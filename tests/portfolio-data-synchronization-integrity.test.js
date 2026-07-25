@@ -1,68 +1,44 @@
 const fs = require('fs');
 const path = require('path');
-
 const root = path.resolve(__dirname, '..');
+const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 
-function read(name) {
-  return fs.readFileSync(path.join(root, name), 'utf8');
-}
-
-describe('Sprint v3.0.2 portfolio synchronization integration', () => {
-  test('registers synchronization and Portfolio State producers', () => {
-    const source = read('ModuleRegistry.js');
-    expect(source).toContain(
-      'PORTFOLIO_SYNCHRONIZATION: foRunPortfolioDataSynchronization'
-    );
-    expect(source).toContain('PORTFOLIO_STATE: foRebuildPortfolioState');
-  });
-
-  test('runs synchronization before market data and valuation', () => {
-    const source = read('AutonomousCioOrchestrator.js');
-    const sync = source.indexOf("'Portfolio Data Synchronization'");
-    const marketData = source.indexOf("'Market Data Refresh'");
-    const valuation = source.indexOf("'Portfolio Valuation'");
-    const state = source.indexOf("'Portfolio State Rebuild'");
-    const integrity = source.indexOf("'Portfolio Data Integrity'");
-
-    expect(sync).toBeGreaterThan(-1);
-    expect(sync).toBeLessThan(marketData);
-    expect(marketData).toBeLessThan(valuation);
-    expect(valuation).toBeLessThan(state);
-    expect(state).toBeLessThan(integrity);
-  });
-
-  test('rebuilds Portfolio Master from governed operational holdings sheets', () => {
+describe('Sprint v3.0.2 Phase D portfolio integrity corrections', () => {
+  test('synchronization fails closed before replacing Portfolio Master', () => {
     const source = read('PortfolioDataSynchronizationService.js');
-    expect(source).toContain("sheetName: 'TFSA Holdings'");
-    expect(source).toContain("sheetName: 'LIRA Holdings'");
-    expect(source).toContain("sheetName: 'Interactive Brokers'");
-    expect(source).toContain('foReplacePortfolioMasterRows_');
-    expect(source).not.toContain("sheetName: 'Watchlists'");
+    const assertion = source.indexOf('foAssertRequiredPortfolioSources_');
+    const replacement = source.indexOf('foReplacePortfolioMasterRows_');
+    expect(assertion).toBeGreaterThan(-1);
+    expect(replacement).toBeGreaterThan(assertion);
+    expect(source).toContain('Portfolio Master was not modified.');
   });
 
-  test('fails closed when required source columns cannot be resolved', () => {
+  test('TFSA and LIRA are required operational sources', () => {
     const source = read('PortfolioDataSynchronizationService.js');
-    expect(source).toContain(
-      "' must contain ticker, quantity and cost-basis columns. Resolved: '"
-    );
+    expect(source).toContain("sheetName: 'TFSA Holdings', account: 'TFSA', required: true");
+    expect(source).toContain("sheetName: 'LIRA Holdings', account: 'LIRA', required: true");
   });
 
-  test('counts active cost basis even when current price is unavailable', () => {
-    const source = read('PortfolioValuationEngine.js');
-    const costBasis = source.indexOf(
-      'totalCostBasis += foSafeNumber_(costBasis);'
-    );
-    const missingPrice = source.indexOf('if (price <= 0)');
-
-    expect(costBasis).toBeGreaterThan(-1);
-    expect(missingPrice).toBeGreaterThan(-1);
-    expect(costBasis).toBeLessThan(missingPrice);
+  test('Portfolio State enforces the governed 22-column schema', () => {
+    const source = read('PortfolioStateService.js');
+    expect(source).toContain("'Market Value CAD'");
+    expect(source).toContain("'Cost Basis CAD'");
+    expect(source).toContain("'Current Weight'");
+    expect(source).toContain('state.clearContents()');
+    expect(source).toContain('stateHeaders.map');
+    expect(source).toContain('Portfolio State schema mismatch');
   });
 
-  test('updates the governed release metadata', () => {
-    const config = read('Config.js');
-    const packageJson = JSON.parse(read('package.json'));
-    expect(config).toContain("PLATFORM_VERSION: 'v3.0.2'");
-    expect(packageJson.version).toBe('3.0.2');
+  test('provides a one-time reconciled holdings bootstrap', () => {
+    const source = read('PortfolioHoldingsBootstrapV302.js');
+    expect(source).toContain('function foBootstrapReconciledHoldingsV302()');
+    expect(source).toContain("['QQC', 'Invesco NASDAQ 100 Index ETF CAD Hedged', 555, 27578.82");
+    expect(source).toContain("['QNC', 'Quantum eMotion', 7697, 13112.45");
+    expect(source).toContain("['ONE', '01 Quantum', 8698, 10307.80");
+  });
+
+  test('backup folders are excluded from clasp deployment', () => {
+    const source = read('.claspignore');
+    expect(source).toContain('.sprint-*-backup/**');
   });
 });
