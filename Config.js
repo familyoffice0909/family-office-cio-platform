@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.0.1',
-  RELEASE_NAME: 'Reporting Engine Write-Back Readiness',
+  PLATFORM_VERSION: 'v3.0.2',
+  RELEASE_NAME: 'Portfolio Data Synchronization & Valuation Integrity',
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.16.1300',
@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.0.1',
+  ENGINE_VERSION: 'v3.0.2',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
@@ -27,6 +27,8 @@ const FO_SHEETS = {
   AUTOMATION_LOG: 'Automation Log',
   PLATFORM_HEALTH: 'Platform Health',
   PORTFOLIO_MASTER: 'Portfolio Master',
+  PORTFOLIO_STATE: 'Portfolio State',
+  PORTFOLIO_SYNCHRONIZATION: 'Portfolio Synchronization',
   PORTFOLIO_DASHBOARD: 'Portfolio Dashboard',
   LEDGER: 'Ledger',
   RECOMMENDATION_LEDGER: 'Recommendation Ledger',
