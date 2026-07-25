@@ -30,8 +30,10 @@ function foRunAutonomousCioOrchestratorProtected_() {
     steps.push(foRunOrchestratorStep_(runId, 'Platform Health Check', foGetModule('HEALTH')));
     steps.push(foRunOrchestratorStep_(runId, 'Platform Integrity Check', foGetModule('INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Data Validation', foGetModule('VALIDATION')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Data Synchronization', foGetModule('PORTFOLIO_SYNCHRONIZATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Data Refresh', foGetModule('MARKET_DATA')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Valuation', foGetModule('VALUATION')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio State Rebuild', foGetModule('PORTFOLIO_STATE')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Data Integrity', foGetModule('PORTFOLIO_DATA_INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Performance', foGetModule('PERFORMANCE')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Exposure Attribution', foGetModule('EXPOSURE')));

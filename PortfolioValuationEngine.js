@@ -40,6 +40,11 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   const costBasisIndex = headers.indexOf('Cost Basis');
   const accountIndex = headers.indexOf('Account');
 
+  if (tickerIndex < 0 || quantityIndex < 0 || priceIndex < 0 ||
+      marketValueIndex < 0 || costBasisIndex < 0) {
+    throw new Error('Portfolio Master valuation schema is incomplete.');
+  }
+
   let totalMarketValue = 0;
   let totalCostBasis = 0;
   let valuedPositions = 0;
@@ -57,9 +62,16 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
     const costBasis = costBasisIndex >= 0 ? foSafeNumber_(values[r][costBasisIndex]) : 0;
 
     if (foIsExcludedValuationRow_(account, ticker, quantity, price)) continue;
+    if (quantity <= 0) continue;
 
-    if (quantity <= 0 || price <= 0) {
+    // Cost basis belongs to every active position, even when live price is
+    // temporarily unavailable. This prevents materially understated portfolio
+    // cost basis and distorted gain percentages.
+    totalCostBasis += foSafeNumber_(costBasis);
+
+    if (price <= 0) {
       missingPriceCount++;
+      portfolioSheet.getRange(r + 1, marketValueIndex + 1).clearContent();
       continue;
     }
 
@@ -68,7 +80,6 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
     portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(marketValue);
 
     totalMarketValue += foSafeNumber_(marketValue);
-    totalCostBasis += foSafeNumber_(costBasis);
     valuedPositions++;
   }
 

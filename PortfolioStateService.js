@@ -8,7 +8,7 @@ function foRebuildPortfolioState() {
 
     const source = dashboard.getSheetByName(FO_SHEETS.PORTFOLIO_MASTER);
 
-    const state = foEnsureSheet_(dashboard, 'Portfolio State', [
+    const state = foEnsureSheet_(dashboard, FO_SHEETS.PORTFOLIO_STATE, [
       'Timestamp',
       'Position ID',
       'Ticker',
