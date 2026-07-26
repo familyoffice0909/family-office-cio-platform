@@ -1,6 +1,7 @@
 /************************************************************
  * AutonomousCioOrchestrator.js
  * Wave 3.1.2 — Orchestrator Integration & Terminal-State Semantics
+ * Sprint 3.1.0 — Portfolio Scenario Intelligence integration
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
@@ -27,6 +28,7 @@ function foRunAutonomousCioOrchestratorProtected_() {
     foInfo_(module, 'Start', 'Autonomous CIO orchestration started. Run ID: ' + runId);
     runRow = foCreateOrchestratorRunWave312_(runId, startedAt);
 
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Scenario Architecture', foGetModule('PORTFOLIO_SCENARIO_SETUP')));
     steps.push(foRunOrchestratorStep_(runId, 'Platform Health Check', foGetModule('HEALTH')));
     steps.push(foRunOrchestratorStep_(runId, 'Platform Integrity Check', foGetModule('INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Data Validation', foGetModule('VALIDATION')));
@@ -43,6 +45,7 @@ function foRunAutonomousCioOrchestratorProtected_() {
     steps.push(foRunOrchestratorStep_(runId, 'Capital Deployment Priority', foGetModule('CAPITAL_DEPLOYMENT')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Optimization Intelligence', foGetModule('PORTFOLIO_OPTIMIZATION')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Scenario Intelligence', foGetModule('PORTFOLIO_SCENARIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foGetModule('REPORT')));
