@@ -1,6 +1,6 @@
 /************************************************************
  * AutonomousCioOrchestrator.js
- * Wave 3.1.2 — Orchestrator Integration & Terminal-State Semantics
+ * Sprint 3.1.2 — Orchestrator Integration & Terminal-State Semantics
  * Sprint 3.1.0 — Portfolio Scenario Intelligence integration
  ************************************************************/
 
