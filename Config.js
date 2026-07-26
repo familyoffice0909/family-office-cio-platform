@@ -1,16 +1,16 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.0.2',
-  RELEASE_NAME: 'Portfolio Data Synchronization & Valuation Integrity',
+  PLATFORM_VERSION: 'v3.1.0',
+  RELEASE_NAME: 'Portfolio Scenario Intelligence',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.16.1300',
+  BUILD: '2026.07.25.1600',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.0.2',
+  ENGINE_VERSION: 'v3.1.0',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
@@ -58,6 +58,8 @@ const FO_SHEETS = {
   CAPITAL_DEPLOYMENT_HISTORY: 'Capital Deployment History',
   PORTFOLIO_OPTIMIZATION: 'Portfolio Optimization',
   PORTFOLIO_OPTIMIZATION_SUMMARY: 'Portfolio Optimization Summary',
+  PORTFOLIO_SCENARIOS: 'Portfolio Scenarios',
+  PORTFOLIO_SCENARIO_SUMMARY: 'Portfolio Scenario Summary',
   PRODUCTION_CERTIFICATION: 'Production Certification',
   PRODUCTION_CERTIFICATION_DETAILS: 'Production Certification Details',
   PORTFOLIO_RISK: 'Portfolio Risk',
@@ -101,7 +103,8 @@ const FO_SHEETS = {
   REPORT_INTEGRATION_VALIDATION_A233: 'Report Integration Validation A233',
   WEEKLY_CIO_REPORT_A240: 'Weekly CIO Report A240',
   WEEKLY_CIO_REPORT_ARCHIVE_A240: 'Weekly CIO Report Archive A240',
-  WEEKLY_CIO_REPORT_VALIDATION_A240: 'Weekly CIO Report Validation A240'};
+  WEEKLY_CIO_REPORT_VALIDATION_A240: 'Weekly CIO Report Validation A240'
+};
 
 const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.PORTFOLIO_MASTER,
@@ -134,6 +137,8 @@ const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.CAPITAL_DEPLOYMENT_HISTORY,
   FO_SHEETS.PORTFOLIO_OPTIMIZATION,
   FO_SHEETS.PORTFOLIO_OPTIMIZATION_SUMMARY,
+  FO_SHEETS.PORTFOLIO_SCENARIOS,
+  FO_SHEETS.PORTFOLIO_SCENARIO_SUMMARY,
   FO_SHEETS.PRODUCTION_CERTIFICATION,
   FO_SHEETS.PRODUCTION_CERTIFICATION_DETAILS,
   FO_SHEETS.PORTFOLIO_RISK,

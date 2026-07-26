@@ -42,11 +42,10 @@ describe('Wave A2.4.0 static integration', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
 
-
-expect(config).toContain("PLATFORM_VERSION: 'v3.0.2'");
-expect(config).toContain("RELEASE_NAME: 'Portfolio Data Synchronization & Valuation Integrity'");
-expect(config).toContain("BASELINE: 'CB-002'");
-expect(packageJson.version).toBe('3.0.2');
+    expect(config).toContain("PLATFORM_VERSION: 'v3.1.0'");
+    expect(config).toContain("RELEASE_NAME: 'Portfolio Scenario Intelligence'");
+    expect(config).toContain("BASELINE: 'CB-002'");
+    expect(packageJson.version).toBe('3.1.0');
 
 
   });
