@@ -1,6 +1,7 @@
 /************************************************************
  * ExecutiveReportingEngine.gs
  * Sprint 2.6.0 — Governed Executive Reporting
+ * Sprint 3.1.0 — Portfolio Scenario Intelligence integration
  ************************************************************/
 
 function foRunExecutiveReportEngine() {
@@ -10,16 +11,24 @@ function foRunExecutiveReportEngine() {
     foInfo_(module, 'Start', 'Executive Report Engine started.');
 
     const dashboard = foDashboard_();
-    const integrationA233 =
+    const integrationA233Base =
       typeof foRunExecutiveDecisionIntegrationA233 === 'function'
         ? foRunExecutiveDecisionIntegrationA233()
         : null;
 
-    if (!integrationA233) {
+    if (!integrationA233Base) {
       throw new Error(
         'Executive Decision Integration A233 is unavailable. Run A2.3.3 first.'
       );
     }
+
+    const integrationA233 =
+      typeof foApplyPortfolioScenarioExecutiveIntegration_ === 'function'
+        ? foApplyPortfolioScenarioExecutiveIntegration_(
+          integrationA233Base,
+          dashboard
+        )
+        : integrationA233Base;
 
     const decisions = foReadGovernedExecutiveDecisions_(
       dashboard,
@@ -87,6 +96,12 @@ function foRunExecutiveReportEngine() {
     ]);
 
     foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId);
+    foAppendPortfolioScenarioExecutiveRows_(
+      dashboard,
+      rows,
+      reportId,
+      integrationA233
+    );
 
     rows.push([
       'Executive Summary',
@@ -120,7 +135,12 @@ function foRunExecutiveReportEngine() {
       status: 'SUCCESS',
       reportId: reportId,
       rowsWritten: rows.length,
-      averageReadiness: summary.averageReadiness
+      averageReadiness: summary.averageReadiness,
+      preferredPortfolioScenario:
+        integrationA233.portfolioScenario &&
+        integrationA233.portfolioScenario.available
+          ? integrationA233.portfolioScenario.preferredScenario
+          : 'NOT AVAILABLE'
     };
 
   } catch (error) {
@@ -386,6 +406,102 @@ function foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId) 
     '',
     '',
     'Aggregate recommended incremental portfolio weight across eligible candidates.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+}
+
+function foAppendPortfolioScenarioExecutiveRows_(
+  dashboard,
+  rows,
+  reportId,
+  integrationA233
+) {
+  let scenario =
+    integrationA233 &&
+    integrationA233.portfolioScenario
+      ? integrationA233.portfolioScenario
+      : null;
+
+  if (
+    (!scenario || !scenario.available) &&
+    typeof foReadPreferredPortfolioScenarioExecutive_ === 'function'
+  ) {
+    scenario = foReadPreferredPortfolioScenarioExecutive_(dashboard);
+  }
+
+  if (!scenario || !scenario.available) {
+    rows.push([
+      'Portfolio Scenario Intelligence',
+      'Preferred Scenario',
+      'NOT AVAILABLE',
+      'REVIEW',
+      'UNKNOWN',
+      'Run Portfolio Scenario Intelligence after Portfolio Optimization.',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+    return;
+  }
+
+  rows.push([
+    'Portfolio Scenario Intelligence',
+    'Preferred Scenario',
+    scenario.preferredScenario,
+    scenario.scenarioScore >= 75 ? 'HIGH' : 'NORMAL',
+    scenario.portfolioRiskLevel,
+    scenario.rationale,
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Scenario Intelligence',
+    'Scenario Score',
+    scenario.scenarioScore,
+    '',
+    scenario.stressContext,
+    'Deterministic comparison score; not a return forecast.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Scenario Intelligence',
+    'Deployment / Funded Candidates',
+    String(
+      Math.round(
+        (Number(scenario.totalIncrementalWeight) || 0) *
+        10000
+      ) / 100
+    ) + '% / ' +
+      String(scenario.fundedCandidateCount || 0),
+    '',
+    '',
+    'Proposed incremental portfolio weight and funded candidate count.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Scenario Intelligence',
+    'Scenario Recommendation',
+    scenario.executiveRecommendation,
+    scenario.portfolioRiskLevel === 'CRITICAL'
+      ? 'CRITICAL'
+      : 'NORMAL',
+    scenario.portfolioRiskLevel,
+    'Preferred scenario is advisory and remains subject to all execution controls.',
     reportId,
     FO_CONFIG.PLATFORM_VERSION,
     FO_CONFIG.BASELINE,
