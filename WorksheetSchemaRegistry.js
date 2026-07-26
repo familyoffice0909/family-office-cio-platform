@@ -26,7 +26,7 @@ function foProductionSchemaRegistry_() {
     },
     {
       sheetName: FO_SHEETS.CAPITAL_DEPLOYMENT_PRIORITIES,
-      schemaVersion: '1.0',
+      schemaVersion: '1.1',
       headers: [
         'Rank',
         'Ticker',
@@ -41,7 +41,12 @@ function foProductionSchemaRegistry_() {
         'Risk',
         'Confidence',
         'Materiality Score',
-        'Priority Score',
+        'Base Priority Score',
+        'Executive Priority Score',
+        'Priority Level',
+        'Overall Trajectory',
+        'Reversal Status',
+        'Trend Evidence Strength',
         'Price Freshness',
         'Zone Position',
         'Distance to Entry %',
@@ -54,7 +59,12 @@ function foProductionSchemaRegistry_() {
         'Portfolio Materiality Score',
         'Timestamp',
         'Platform Version',
-        'Baseline'
+        'Baseline',
+        'Recommendation Quality Score',
+        'Recommendation Quality Grade',
+        'Evidence Balance',
+        'Contradiction Status',
+        'Quality Rationale'
       ]
     },
     {
@@ -120,7 +130,7 @@ function foProductionSchemaRegistry_() {
     },
     {
       sheetName: FO_SHEETS.PORTFOLIO_MATERIALITY,
-      schemaVersion: '1.0',
+      schemaVersion: '1.1',
       headers: [
         'Timestamp',
         'Portfolio Materiality Score',
@@ -133,6 +143,12 @@ function foProductionSchemaRegistry_() {
         'Improving Securities',
         'Deteriorating Securities',
         'Stale or Missing Prices',
+        'Priority Review Securities',
+        'Suppressed Securities',
+        'Downward Reversals',
+        'Opportunity Signals',
+        'Top Executive Priority',
+        'Primary Attention Type',
         'Recommended CIO Response',
         'Executive Summary',
         'Platform Version',
