@@ -2,6 +2,7 @@
  * ExecutiveReportingEngine.gs
  * Sprint 2.6.0 — Governed Executive Reporting
  * Sprint 3.1.0 — Portfolio Scenario Intelligence integration
+ * Sprint 3.2.0 — Risk Budget Intelligence integration
  ************************************************************/
 
 function foRunExecutiveReportEngine() {
@@ -102,6 +103,7 @@ function foRunExecutiveReportEngine() {
       reportId,
       integrationA233
     );
+    foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId);
 
     rows.push([
       'Executive Summary',
@@ -502,6 +504,97 @@ function foAppendPortfolioScenarioExecutiveRows_(
       : 'NORMAL',
     scenario.portfolioRiskLevel,
     'Preferred scenario is advisory and remains subject to all execution controls.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+}
+
+
+function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
+  const sheet = dashboard.getSheetByName(FO_SHEETS.RISK_BUDGET_SUMMARY);
+  if (!sheet || sheet.getLastRow() < 2) {
+    rows.push([
+      'Risk Budget Intelligence',
+      'Risk Budget Status',
+      'NOT AVAILABLE',
+      'REVIEW',
+      'UNKNOWN',
+      'Run Risk Budget Intelligence after Portfolio Scenario Intelligence.',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+    return;
+  }
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const metrics = {};
+  values.slice(1).forEach(function(row) {
+    const metric = String(foGetVal_(row, headers, 'Metric') || '').trim();
+    if (metric) {
+      metrics[metric] = {
+        value: foGetVal_(row, headers, 'Value'),
+        status: foGetVal_(row, headers, 'Status'),
+        rationale: foGetVal_(row, headers, 'Rationale')
+      };
+    }
+  });
+
+  const overall = metrics['Overall Risk Budget Status'] || {};
+  const utilization = metrics['Portfolio Risk Budget Utilization'] || {};
+  const breaches = metrics['Risk Budget Breach Count'] || {};
+  const directive = metrics['Executive Risk Budget Directive'] || {};
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Risk Budget Status',
+    overall.value || 'NOT AVAILABLE',
+    String(overall.value || '').toUpperCase() === 'BREACH' ? 'CRITICAL' : 'NORMAL',
+    overall.status || '',
+    overall.rationale || '',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Portfolio Budget Utilization',
+    utilization.value || 0,
+    '',
+    utilization.status || '',
+    utilization.rationale || 'Proposed target weight divided by governed position-capacity total.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Breach Count',
+    breaches.value || 0,
+    Number(breaches.value || 0) > 0 ? 'CRITICAL' : 'NORMAL',
+    breaches.status || '',
+    breaches.rationale || '',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Executive Directive',
+    directive.value || 'REVIEW RISK BUDGET',
+    '',
+    directive.status || '',
+    directive.rationale || '',
     reportId,
     FO_CONFIG.PLATFORM_VERSION,
     FO_CONFIG.BASELINE,

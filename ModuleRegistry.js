@@ -5,6 +5,7 @@
 
 const FO_MODULES = {
   PORTFOLIO_SCENARIO_SETUP: foSetupPortfolioScenarioIntelligence,
+  RISK_BUDGET_SETUP: foSetupRiskBudgetIntelligence,
   HEALTH: foRunPlatformHealthCheck,
   INTEGRITY: foRunPlatformIntegrityCheck,
   VALIDATION: foRunDataValidation,
@@ -21,6 +22,7 @@ const FO_MODULES = {
   CAPITAL_DEPLOYMENT: foRunCapitalDeploymentPriorityEngine,
   PORTFOLIO_OPTIMIZATION: foRunPortfolioOptimizationIntelligence,
   PORTFOLIO_SCENARIO: foRunPortfolioScenarioIntelligence,
+  RISK_BUDGET: foRunRiskBudgetIntelligence,
   PRODUCTION_CERTIFICATION: foRunProductionCertificationWave311,
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
