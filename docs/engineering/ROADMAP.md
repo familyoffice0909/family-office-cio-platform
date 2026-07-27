@@ -93,6 +93,16 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 - Wave 2.4 — Buy Zone Intelligence baseline
 - Phase 2 live portfolio intelligence capabilities recorded in the repository history
 
+**Approved maintenance release:**
+
+- v3.2.1 — Risk Budget Classification & Executive Readability
+  - Status: Approved; implementation not started
+  - Sequence: Immediately after v3.2.0 Risk Budget Intelligence and before v3.3.0 Portfolio Rebalancing Intelligence
+  - Classify the primary decision blocker separately from supporting factors
+  - Distinguish risk-budget capacity breaches from upstream recommendation, confidence, market-data, and allocation-eligibility constraints
+  - Improve Risk Budget Assessment, Risk Budget Summary, and executive-report readability
+  - Preserve v3.2.0 decision logic, governed thresholds, and advisory authority; no new predictive model or allocation algorithm
+
 **Future:**
 
 - Buy Zone hardening, target-entry and freshness controls, history, and holding/watchlist distinction

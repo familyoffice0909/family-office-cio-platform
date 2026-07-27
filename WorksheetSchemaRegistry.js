@@ -129,6 +129,47 @@ function foProductionSchemaRegistry_() {
       ]
     },
     {
+      sheetName: FO_SHEETS.RISK_BUDGET_ASSESSMENT,
+      schemaVersion: '1.0',
+      headers: [
+        'Scenario Rank',
+        'Scenario ID',
+        'Scenario Name',
+        'Ticker',
+        'Account',
+        'Deployment Decision',
+        'Current Portfolio Weight',
+        'Proposed Incremental Weight',
+        'Proposed Target Weight',
+        'Risk Budget Capacity',
+        'Risk Budget Utilization',
+        'Remaining Risk Capacity',
+        'Budget Status',
+        'Breach Reason',
+        'Upstream Constraint Status',
+        'Upstream Constraint Reason',
+        'Risk Discipline Score',
+        'Constraint Compliance Score',
+        'Executive Directive',
+        'Timestamp',
+        'Platform Version',
+        'Baseline'
+      ]
+    },
+    {
+      sheetName: FO_SHEETS.RISK_BUDGET_SUMMARY,
+      schemaVersion: '1.0',
+      headers: [
+        'Metric',
+        'Value',
+        'Status',
+        'Rationale',
+        'Timestamp',
+        'Platform Version',
+        'Baseline'
+      ]
+    },
+    {
       sheetName: FO_SHEETS.PORTFOLIO_MATERIALITY,
       schemaVersion: '1.1',
       headers: [

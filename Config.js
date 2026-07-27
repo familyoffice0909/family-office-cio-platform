@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.1.0',
-  RELEASE_NAME: 'Portfolio Scenario Intelligence',
+  PLATFORM_VERSION: 'v3.2.0',
+  RELEASE_NAME: 'Risk Budget Intelligence',
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.25.1600',
@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.1.0',
+  ENGINE_VERSION: 'v3.2.0',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
@@ -60,6 +60,8 @@ const FO_SHEETS = {
   PORTFOLIO_OPTIMIZATION_SUMMARY: 'Portfolio Optimization Summary',
   PORTFOLIO_SCENARIOS: 'Portfolio Scenarios',
   PORTFOLIO_SCENARIO_SUMMARY: 'Portfolio Scenario Summary',
+  RISK_BUDGET_ASSESSMENT: 'Risk Budget Assessment',
+  RISK_BUDGET_SUMMARY: 'Risk Budget Summary',
   PRODUCTION_CERTIFICATION: 'Production Certification',
   PRODUCTION_CERTIFICATION_DETAILS: 'Production Certification Details',
   PORTFOLIO_RISK: 'Portfolio Risk',
@@ -139,6 +141,8 @@ const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.PORTFOLIO_OPTIMIZATION_SUMMARY,
   FO_SHEETS.PORTFOLIO_SCENARIOS,
   FO_SHEETS.PORTFOLIO_SCENARIO_SUMMARY,
+  FO_SHEETS.RISK_BUDGET_ASSESSMENT,
+  FO_SHEETS.RISK_BUDGET_SUMMARY,
   FO_SHEETS.PRODUCTION_CERTIFICATION,
   FO_SHEETS.PRODUCTION_CERTIFICATION_DETAILS,
   FO_SHEETS.PORTFOLIO_RISK,

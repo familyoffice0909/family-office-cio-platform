@@ -38,14 +38,14 @@ describe('Wave A2.4.0 static integration', () => {
     expect(read('Menu.js')).toContain('foRunWeeklyCioReportSmokeTestA240');
   });
 
-  test('released platform metadata is reconciled to v1.3.0 and CB-002', () => {
+  test('released platform metadata is reconciled to v3.2.0 and CB-002', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
 
-    expect(config).toContain("PLATFORM_VERSION: 'v3.1.0'");
-    expect(config).toContain("RELEASE_NAME: 'Portfolio Scenario Intelligence'");
+    expect(config).toContain("PLATFORM_VERSION: 'v3.2.0'");
+    expect(config).toContain("RELEASE_NAME: 'Risk Budget Intelligence'");
     expect(config).toContain("BASELINE: 'CB-002'");
-    expect(packageJson.version).toBe('3.1.0');
+    expect(packageJson.version).toBe('3.2.0');
 
 
   });
