@@ -754,5 +754,3 @@ function foRunExecutiveReportSmokeTest() {
     throw error;
   }
 }
-
-
