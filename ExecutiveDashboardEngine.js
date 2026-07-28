@@ -136,7 +136,11 @@ function foReadCioDecisionRows_(spreadsheet) {
     rows.push({
       ticker: ticker,
       company: foGetVal_(values[r], headers, 'Company'),
-      marketValue: foNum_(foGetVal_(values[r], headers, 'Market Value')),
+        account:
+    foGetVal_(values[r], headers, 'Account') ||
+    foGetVal_(values[r], headers, 'Portfolio Account') ||
+    '',
+  marketValue: foNum_(foGetVal_(values[r], headers, 'Market Value')),
       cioReadiness: foNum_(foGetVal_(values[r], headers, 'CIO Readiness')),
       cioAction: foGetVal_(values[r], headers, 'CIO Action'),
       priority: foGetVal_(values[r], headers, 'Priority'),
@@ -279,9 +283,46 @@ function foReadinessStatus_(readiness) {
 function foJoinTickers_(rows) {
   if (!rows || rows.length === 0) return 'None';
 
+  const counts = {};
+
+  rows.forEach(function(r) {
+    const ticker = String(r.ticker || r.Ticker || '').trim();
+    counts[ticker] = (counts[ticker] || 0) + 1;
+  });
+
   return rows.map(function(r) {
-    return r.ticker;
+    const ticker = String(r.ticker || r.Ticker || '').trim();
+
+    if (counts[ticker] === 1) {
+      return ticker;
+    }
+
+    const account = foExecutiveDashboardAccountLabel_(r);
+    return ticker + ' (' + account + ')';
   }).join(', ');
+}
+
+function foExecutiveDashboardAccountLabel_(row) {
+  const account =
+    row.account ||
+    row.Account ||
+    row.accountName ||
+    row.account_name ||
+    row.accountType ||
+    row.account_type ||
+    row.portfolioAccount ||
+    row.portfolio_account ||
+    row.sourceAccount ||
+    row.source_account ||
+    '';
+
+  const normalized = String(account).trim();
+
+  if (normalized) {
+    return normalized;
+  }
+
+  return 'Account not provided';
 }
 
 function foFindTopOpportunity_(decisions) {

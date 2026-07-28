@@ -1,6 +1,9 @@
+/**
+ * Risk Budget Intelligence does not forecast returns and is not predictive.
+ */
 /************************************************************
  * RiskBudgetIntelligence.js
- * Sprint 3.2.0 — Risk Budget Intelligence
+ * Sprint 3.2.1 — Risk Budget Classification & Executive Readability
  *
  * Deterministic governance layer. It does not forecast returns,
  * volatility, drawdowns, losses, or trade quantities. Existing upstream
@@ -8,7 +11,7 @@
  * authoritative.
  ************************************************************/
 
-const FO_RISK_BUDGET_ENGINE_VERSION = '1.0.0';
+const FO_RISK_BUDGET_ENGINE_VERSION = '1.1.0';
 
 function foSetupRiskBudgetIntelligence() {
   const dashboard = foDashboard_();
@@ -112,60 +115,183 @@ function foEvaluateRiskBudget_(allocations, scenarioSummary) {
     const utilization = capacity > 0 ? proposed / capacity : (proposed > 0 ? 1 : 0);
     const upstreamFailed = item.upstreamConstraintStatus && item.upstreamConstraintStatus !== 'PASS';
     const overBudget = capacity <= 0 ? proposed > 0 : proposed > capacity + 0.0000001;
-    let status = 'WITHIN BUDGET';
-    let reason = 'Proposed target remains within the governed maximum position weight.';
-    if (upstreamFailed || overBudget) {
-      status = 'BREACH';
-      reason = upstreamFailed
-        ? (item.upstreamConstraintReason || 'Upstream constraint is not PASS.')
-        : 'Proposed target weight exceeds the governed maximum position weight.';
+    let budgetStatus = 'WITHIN BUDGET';
+    let capacityReason = 'Proposed target remains within the governed maximum position weight.';
+    if (overBudget) {
+      budgetStatus = 'BREACH';
+      capacityReason = 'Proposed target weight exceeds the governed maximum position weight.';
     } else if (utilization >= 0.90) {
-      status = 'CONSTRAINED';
-      reason = 'Proposed target uses at least 90% of the governed position capacity.';
+      budgetStatus = 'CONSTRAINED';
+      capacityReason = 'Proposed target uses at least 90% of the governed position capacity.';
     }
+
+    const upstreamClassification = foClassifyRiskBudgetUpstreamConstraint_(
+      item.upstreamConstraintStatus,
+      item.upstreamConstraintReason
+    );
+    const primaryBlocker = overBudget
+      ? 'RISK_BUDGET_CAPACITY'
+      : (upstreamFailed ? upstreamClassification.category : 'NONE');
+    const supportingFactors = [];
+    if (overBudget && upstreamFailed) supportingFactors.push(upstreamClassification.label);
+    if (!overBudget && budgetStatus === 'CONSTRAINED' && upstreamFailed) supportingFactors.push('NEAR RISK-BUDGET CAPACITY');
+    const executiveClassification = foRiskBudgetExecutiveClassification_(budgetStatus, primaryBlocker);
+    const executiveSummary = foRiskBudgetExecutiveSummary_(budgetStatus, primaryBlocker, item.upstreamConstraintReason);
+    const executiveDirective = foRiskBudgetExecutiveDirective_(budgetStatus, primaryBlocker);
+
     return Object.assign({}, item, {
       riskBudgetCapacity: foRiskBudgetRoundWeight_(capacity),
       riskBudgetUtilization: foRiskBudgetRoundWeight_(utilization),
       remainingRiskCapacity: foRiskBudgetRoundWeight_(Math.max(0, capacity - proposed)),
-      budgetStatus: status,
-      breachReason: reason,
-      executiveDirective: status === 'BREACH'
-        ? 'DO NOT INCREASE; REMEDIATE CONSTRAINT'
-        : (status === 'CONSTRAINED' ? 'LIMIT ADDITIONAL DEPLOYMENT' : 'WITHIN GOVERNED CAPACITY')
+      budgetStatus: budgetStatus,
+      breachReason: overBudget ? capacityReason : '',
+      primaryBlocker: primaryBlocker,
+      supportingFactors: supportingFactors.join(' | '),
+      executiveClassification: executiveClassification,
+      executiveSummary: executiveSummary,
+      executiveDirective: executiveDirective
     });
   });
+
   const totalCapacity = assessments.reduce(function(sum, item) { return sum + item.riskBudgetCapacity; }, 0);
   const totalProposed = assessments.reduce(function(sum, item) { return sum + item.proposedTargetWeight; }, 0);
   const breachCount = assessments.filter(function(item) { return item.budgetStatus === 'BREACH'; }).length;
   const constrainedCount = assessments.filter(function(item) { return item.budgetStatus === 'CONSTRAINED'; }).length;
+  const blockedCount = assessments.filter(function(item) { return item.primaryBlocker !== 'NONE' && item.primaryBlocker !== 'RISK_BUDGET_CAPACITY'; }).length;
+  const recommendationBlockCount = foRiskBudgetBlockerCount_(assessments, 'RECOMMENDATION_CONTROL');
+  const confidenceBlockCount = foRiskBudgetBlockerCount_(assessments, 'CONFIDENCE');
+  const allocationBlockCount = foRiskBudgetBlockerCount_(assessments, 'ALLOCATION_ELIGIBILITY');
+  const marketDataBlockCount = foRiskBudgetBlockerCount_(assessments, 'MARKET_DATA');
+  const otherBlockCount = foRiskBudgetBlockerCount_(assessments, 'OTHER');
   const utilization = totalCapacity > 0 ? totalProposed / totalCapacity : 0;
   let overallStatus = 'WITHIN BUDGET';
-  if (breachCount > 0 || (scenarioSummary && scenarioSummary.upstreamBreachCount > 0)) overallStatus = 'BREACH';
+  if (breachCount > 0) overallStatus = 'BREACH';
   else if (constrainedCount > 0 || utilization >= 0.90) overallStatus = 'CONSTRAINED';
-  const directive = overallStatus === 'BREACH'
-    ? 'PAUSE INCREMENTAL DEPLOYMENT AND REMEDIATE RISK-BUDGET BREACHES.'
-    : (overallStatus === 'CONSTRAINED'
-      ? 'DEPLOY SELECTIVELY; PRESERVE REMAINING RISK CAPACITY.'
-      : 'PROPOSED ALLOCATION REMAINS WITHIN GOVERNED RISK CAPACITY.');
+  const primaryBlocker = foRiskBudgetPortfolioPrimaryBlocker_(assessments);
+  const overallConstraintStatus = breachCount > 0 || blockedCount > 0 ? 'BLOCKED' : (constrainedCount > 0 ? 'REVIEW' : 'CLEAR');
+  const directive = foRiskBudgetPortfolioDirective_(overallStatus, primaryBlocker, blockedCount);
   return {
     assessments: assessments,
     summary: {
       overallStatus: overallStatus,
+      overallConstraintStatus: overallConstraintStatus,
+      primaryBlocker: primaryBlocker,
       totalCapacity: foRiskBudgetRoundWeight_(totalCapacity),
       totalProposed: foRiskBudgetRoundWeight_(totalProposed),
       utilization: foRiskBudgetRoundWeight_(utilization),
       remainingCapacity: foRiskBudgetRoundWeight_(Math.max(0, totalCapacity - totalProposed)),
       breachCount: breachCount,
       constrainedCount: constrainedCount,
+      blockedCount: blockedCount,
+      recommendationBlockCount: recommendationBlockCount,
+      confidenceBlockCount: confidenceBlockCount,
+      allocationBlockCount: allocationBlockCount,
+      marketDataBlockCount: marketDataBlockCount,
+      otherBlockCount: otherBlockCount,
       scenarioRiskLevel: scenarioSummary ? scenarioSummary.portfolioRiskLevel : 'UNKNOWN',
       riskDisciplineScore: scenarioSummary ? scenarioSummary.riskDisciplineScore : 0,
       constraintComplianceScore: scenarioSummary ? scenarioSummary.constraintComplianceScore : 0,
       directive: directive,
-      rationale: 'Risk budget uses preferred-scenario target weights and existing governed maximum-position and upstream-constraint outputs; it is not predictive.'
+      rationale: 'Risk-budget capacity is classified independently from upstream decision constraints; existing governed calculations and upstream authorities remain unchanged.'
     }
   };
 }
 
+function foClassifyRiskBudgetUpstreamConstraint_(status, reason) {
+  const normalizedStatus = String(status || '').trim().toUpperCase();
+  const normalizedReason = String(reason || '').trim().toUpperCase();
+
+  if (!normalizedStatus || normalizedStatus === 'PASS') {
+    return {category: 'NONE', label: 'NONE'};
+  }
+
+  // Market-data classification requires an explicit price, quote, or
+  // market-data failure. Generic recommendation-data wording must not
+  // be interpreted as a market-data problem.
+  if (
+    /MISSING PRICE|STALE PRICE|PRICE UNAVAILABLE|INVALID PRICE|NO CURRENT PRICE|QUOTE UNAVAILABLE|MARKET DATA UNAVAILABLE|MARKET PRICE UNAVAILABLE|REFRESH REQUIRED MARKET DATA/.test(
+      normalizedReason
+    )
+  ) {
+    return {category: 'MARKET_DATA', label: 'MARKET DATA'};
+  }
+
+  if (
+    /INSUFFICIENT RECOMMENDATION DATA|RECOMMENDATION CONTRADICTION|RECOMMENDATION NOT DEPLOYABLE|RECOMMENDATION UNAVAILABLE|NO ELIGIBLE RECOMMENDATION|RECOMMENDATION CONTROL|RECOMMEND|CONTRADICTION/.test(
+      normalizedReason
+    )
+  ) {
+    return {
+      category: 'RECOMMENDATION_CONTROL',
+      label: 'RECOMMENDATION CONTROL'
+    };
+  }
+
+  if (
+    /CONFIDENCE BELOW POLICY|LOW CONFIDENCE|INSUFFICIENT CONVICTION|INSUFFICIENT EVIDENCE|QUALITY BELOW POLICY|CONFIDENCE|CONVICTION|QUALITY|EVIDENCE/.test(
+      normalizedReason
+    )
+  ) {
+    return {category: 'CONFIDENCE', label: 'CONFIDENCE'};
+  }
+
+  if (
+    /DEPLOYMENT DECISION NOT ELIGIBLE|INVALID ALLOCATION BAND|ALLOCATION NOT ELIGIBLE|NO VALID ALLOCATION|TARGET WEIGHT NOT ELIGIBLE|POSITION LIMIT|MAXIMUM POSITION|ALLOCATION|ELIGIB|BAND/.test(
+      normalizedReason
+    )
+  ) {
+    return {
+      category: 'ALLOCATION_ELIGIBILITY',
+      label: 'ALLOCATION ELIGIBILITY'
+    };
+  }
+
+  return {category: 'OTHER', label: 'OTHER UPSTREAM CONSTRAINT'};
+}
+
+function foRiskBudgetExecutiveClassification_(budgetStatus, primaryBlocker) {
+  if (primaryBlocker === 'RISK_BUDGET_CAPACITY') return 'CAPACITY BREACH';
+  if (primaryBlocker !== 'NONE') return 'UPSTREAM BLOCK';
+  if (budgetStatus === 'CONSTRAINED') return 'CAPACITY CONSTRAINED';
+  return 'CLEAR';
+}
+
+function foRiskBudgetExecutiveSummary_(budgetStatus, primaryBlocker, upstreamReason) {
+  if (primaryBlocker === 'RISK_BUDGET_CAPACITY') return 'Target allocation exceeds governed position capacity.';
+  if (primaryBlocker !== 'NONE') return String(upstreamReason || 'Allocation is blocked by an upstream governed control.').trim();
+  if (budgetStatus === 'CONSTRAINED') return 'Target allocation is within budget but near governed position capacity.';
+  return 'Target allocation is within governed risk-budget capacity with no upstream blocker.';
+}
+
+function foRiskBudgetExecutiveDirective_(budgetStatus, primaryBlocker) {
+  if (primaryBlocker === 'RISK_BUDGET_CAPACITY') return 'DO NOT INCREASE; REDUCE TARGET OR CAPACITY EXPOSURE';
+  if (primaryBlocker === 'RECOMMENDATION_CONTROL') return 'WAIT FOR RECOMMENDATION CONTROL TO CLEAR';
+  if (primaryBlocker === 'ALLOCATION_ELIGIBILITY') return 'REVIEW ALLOCATION ELIGIBILITY';
+  if (primaryBlocker === 'MARKET_DATA') return 'REFRESH REQUIRED MARKET DATA';
+  if (primaryBlocker === 'CONFIDENCE') return 'MONITOR UNTIL CONFIDENCE IMPROVES';
+  if (primaryBlocker === 'OTHER') return 'REVIEW UPSTREAM CONSTRAINT';
+  if (budgetStatus === 'CONSTRAINED') return 'LIMIT ADDITIONAL DEPLOYMENT';
+  return 'WITHIN GOVERNED CAPACITY';
+}
+
+function foRiskBudgetBlockerCount_(assessments, category) {
+  return assessments.filter(function(item) { return item.primaryBlocker === category; }).length;
+}
+
+function foRiskBudgetPortfolioPrimaryBlocker_(assessments) {
+  const hierarchy = ['RISK_BUDGET_CAPACITY','RECOMMENDATION_CONTROL','ALLOCATION_ELIGIBILITY','MARKET_DATA','CONFIDENCE','OTHER'];
+  for (let index = 0; index < hierarchy.length; index += 1) {
+    if (assessments.some(function(item) { return item.primaryBlocker === hierarchy[index]; })) return hierarchy[index];
+  }
+  return 'NONE';
+}
+
+function foRiskBudgetPortfolioDirective_(overallStatus, primaryBlocker, blockedCount) {
+  if (primaryBlocker === 'RISK_BUDGET_CAPACITY') return 'PAUSE INCREMENTAL DEPLOYMENT AND REMEDIATE RISK-BUDGET CAPACITY BREACHES.';
+  if (blockedCount > 0) return 'PRESERVE RISK CAPACITY AND REMEDIATE THE PRIMARY UPSTREAM BLOCKER.';
+  if (overallStatus === 'CONSTRAINED') return 'DEPLOY SELECTIVELY; PRESERVE REMAINING RISK CAPACITY.';
+  return 'PROPOSED ALLOCATION REMAINS WITHIN GOVERNED RISK CAPACITY.';
+}
 function foWriteRiskBudgetAssessment_(dashboard, assessments) {
   const headers = foRiskBudgetAssessmentHeaders_();
   const sheet = foEnsureRiskBudgetSheetContract_(dashboard, FO_SHEETS.RISK_BUDGET_ASSESSMENT, headers);
@@ -177,6 +303,7 @@ function foWriteRiskBudgetAssessment_(dashboard, assessments) {
     item.proposedTargetWeight, item.riskBudgetCapacity, item.riskBudgetUtilization,
     item.remainingRiskCapacity, item.budgetStatus, item.breachReason,
     item.upstreamConstraintStatus, item.upstreamConstraintReason,
+    item.primaryBlocker, item.supportingFactors, item.executiveClassification, item.executiveSummary,
     item.riskDisciplineScore, item.constraintComplianceScore,
     item.executiveDirective, now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE
   ]; });
@@ -198,7 +325,15 @@ function foWriteRiskBudgetSummary_(dashboard, summary) {
     ['Proposed Target Weight', summary.totalProposed, summary.overallStatus, 'Aggregate preferred-scenario proposed target weight.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
     ['Portfolio Risk Budget Utilization', summary.utilization, summary.overallStatus, 'Proposed target weight divided by governed position-capacity total.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
     ['Remaining Risk Capacity', summary.remainingCapacity, summary.overallStatus, 'Non-negative residual governed capacity.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    ['Risk Budget Breach Count', summary.breachCount, summary.overallStatus, 'Allocations breaching upstream constraints or maximum-position capacity.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Risk Budget Breach Count', summary.breachCount, summary.overallStatus, 'Allocations exceeding governed maximum-position capacity.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Overall Constraint Status', summary.overallConstraintStatus, summary.overallConstraintStatus, 'Combined view of risk-budget capacity and upstream governed constraints.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Primary Blocker', summary.primaryBlocker, summary.overallConstraintStatus, 'Highest-priority blocker under the governed deterministic hierarchy.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Blocked Position Count', summary.blockedCount, summary.overallConstraintStatus, 'Positions blocked by upstream governed controls, excluding risk-budget capacity breaches.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Recommendation Control Blocks', summary.recommendationBlockCount, summary.overallConstraintStatus, 'Positions blocked by recommendation or contradiction controls.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Confidence Blocks', summary.confidenceBlockCount, summary.overallConstraintStatus, 'Positions blocked by confidence, conviction, quality, or evidence controls.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Allocation Eligibility Blocks', summary.allocationBlockCount, summary.overallConstraintStatus, 'Positions blocked by allocation eligibility or allocation-band controls.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Market Data Blocks', summary.marketDataBlockCount, summary.overallConstraintStatus, 'Positions blocked by missing, stale, or unavailable market data.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    ['Other Upstream Blocks', summary.otherBlockCount, summary.overallConstraintStatus, 'Positions blocked by another governed upstream control.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
     ['Constrained Allocation Count', summary.constrainedCount, summary.overallStatus, 'Allocations using at least 90% of governed position capacity.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
     ['Portfolio Risk Level', summary.scenarioRiskLevel, summary.overallStatus, 'Reused from the preferred Portfolio Scenario summary.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
     ['Risk Discipline Score', summary.riskDisciplineScore, summary.overallStatus, 'Reused from the preferred Portfolio Scenario summary.', now, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
@@ -225,8 +360,25 @@ function foEnsureRiskBudgetSheetContract_(dashboard, sheetName, headers) {
   const actual = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
     .map(function(value) { return String(value || '').trim(); });
   const matches = actual.length === headers.length && headers.every(function(header, index) { return actual[index] === header; });
-  if (!matches) throw new Error('Risk Budget contract mismatch for "' + sheetName + '". Expected: ' + JSON.stringify(headers) + ' Actual: ' + JSON.stringify(actual));
-  return sheet;
+  if (matches) return sheet;
+  if (sheetName === FO_SHEETS.RISK_BUDGET_ASSESSMENT && foRiskBudgetLegacyAssessmentHeadersMatch_(actual)) {
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return sheet;
+  }
+  throw new Error('Risk Budget contract mismatch for "' + sheetName + '". Expected: ' + JSON.stringify(headers) + ' Actual: ' + JSON.stringify(actual));
+}
+
+function foRiskBudgetLegacyAssessmentHeadersMatch_(actual) {
+  const legacy = [
+    'Scenario Rank','Scenario ID','Scenario Name','Ticker','Account','Deployment Decision',
+    'Current Portfolio Weight','Proposed Incremental Weight','Proposed Target Weight',
+    'Risk Budget Capacity','Risk Budget Utilization','Remaining Risk Capacity',
+    'Budget Status','Breach Reason','Upstream Constraint Status','Upstream Constraint Reason',
+    'Risk Discipline Score','Constraint Compliance Score','Executive Directive',
+    'Timestamp','Platform Version','Baseline'
+  ];
+  return actual.length === legacy.length && legacy.every(function(header, index) { return actual[index] === header; });
 }
 
 function foFormatRiskBudgetSheet_(sheet, headers, rowCount, percentHeaders) {
@@ -237,7 +389,7 @@ function foFormatRiskBudgetSheet_(sheet, headers, rowCount, percentHeaders) {
     if (column > 0) sheet.getRange(2, column, Math.max(rowCount, 1), 1).setNumberFormat('0.00%');
   });
   sheet.autoResizeColumns(1, headers.length);
-  ['Breach Reason','Upstream Constraint Reason','Executive Directive','Rationale'].forEach(function(header) {
+  ['Breach Reason','Upstream Constraint Reason','Supporting Factors','Executive Summary','Executive Directive','Rationale'].forEach(function(header) {
     const column = headers.indexOf(header) + 1;
     if (column > 0) sheet.setColumnWidth(column, 520);
   });
@@ -248,6 +400,7 @@ function foRiskBudgetAssessmentHeaders_() { return [
   'Current Portfolio Weight','Proposed Incremental Weight','Proposed Target Weight',
   'Risk Budget Capacity','Risk Budget Utilization','Remaining Risk Capacity',
   'Budget Status','Breach Reason','Upstream Constraint Status','Upstream Constraint Reason',
+  'Primary Blocker','Supporting Factors','Executive Classification','Executive Summary',
   'Risk Discipline Score','Constraint Compliance Score','Executive Directive',
   'Timestamp','Platform Version','Baseline'
 ]; }

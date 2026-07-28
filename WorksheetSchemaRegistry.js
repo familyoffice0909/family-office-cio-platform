@@ -69,7 +69,7 @@ function foProductionSchemaRegistry_() {
     },
     {
       sheetName: FO_SHEETS.PORTFOLIO_SCENARIOS,
-      schemaVersion: '1.0',
+      schemaVersion: '1.1',
       headers: [
         'Scenario Rank',
         'Scenario ID',
@@ -148,6 +148,10 @@ function foProductionSchemaRegistry_() {
         'Breach Reason',
         'Upstream Constraint Status',
         'Upstream Constraint Reason',
+        'Primary Blocker',
+        'Supporting Factors',
+        'Executive Classification',
+        'Executive Summary',
         'Risk Discipline Score',
         'Constraint Compliance Score',
         'Executive Directive',
