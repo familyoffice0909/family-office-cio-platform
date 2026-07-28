@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.2.0',
-  RELEASE_NAME: 'Risk Budget Intelligence',
+  PLATFORM_VERSION: 'v3.2.1',
+  RELEASE_NAME: 'Risk Budget Classification & Executive Readability',
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.25.1600',
@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.2.0',
+  ENGINE_VERSION: 'v3.2.1',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
