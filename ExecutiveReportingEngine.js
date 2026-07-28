@@ -547,6 +547,8 @@ function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
   const overall = metrics['Overall Risk Budget Status'] || {};
   const utilization = metrics['Portfolio Risk Budget Utilization'] || {};
   const breaches = metrics['Risk Budget Breach Count'] || {};
+  const blocker = metrics['Primary Blocker'] || {};
+  const blockedPositions = metrics['Blocked Position Count'] || {};
   const directive = metrics['Executive Risk Budget Directive'] || {};
 
   rows.push([
@@ -582,6 +584,33 @@ function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
     Number(breaches.value || 0) > 0 ? 'CRITICAL' : 'NORMAL',
     breaches.status || '',
     breaches.rationale || '',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Primary Blocker',
+    blocker.value || 'NONE',
+    String(blocker.value || 'NONE').toUpperCase() === 'NONE' ? 'NORMAL' : 'HIGH',
+    blocker.status || '',
+    blocker.rationale || 'Highest-priority blocker under the governed deterministic hierarchy.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Risk Budget Intelligence',
+    'Blocked Positions',
+    blockedPositions.value || 0,
+    Number(blockedPositions.value || 0) > 0 ? 'HIGH' : 'NORMAL',
+    blockedPositions.status || '',
+    blockedPositions.rationale || '',
     reportId,
     FO_CONFIG.PLATFORM_VERSION,
     FO_CONFIG.BASELINE,

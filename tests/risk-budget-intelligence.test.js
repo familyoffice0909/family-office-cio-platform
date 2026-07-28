@@ -15,7 +15,7 @@ function allocation(overrides) { return Object.assign({
   constraintComplianceScore: 100
 }, overrides || {}); }
 const summary = {portfolioRiskLevel:'MEDIUM', riskDisciplineScore:80, constraintComplianceScore:100, upstreamBreachCount:0};
-describe('Sprint 3.2.0 Risk Budget Intelligence', () => {
+describe('Sprint 3.2.1 Risk Budget Classification & Executive Readability', () => {
   test('keeps a compliant allocation within budget', () => {
     const result = context.foEvaluateRiskBudget_([allocation()], summary);
     expect(result.assessments[0].budgetStatus).toBe('WITHIN BUDGET');
@@ -29,8 +29,34 @@ describe('Sprint 3.2.0 Risk Budget Intelligence', () => {
   });
   test('preserves upstream constraint authority', () => {
     const result = context.foEvaluateRiskBudget_([allocation({upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Upstream limit'})], summary);
+    expect(result.assessments[0].budgetStatus).toBe('WITHIN BUDGET');
+    expect(result.assessments[0].primaryBlocker).toBe('OTHER');
+    expect(result.assessments[0].executiveClassification).toBe('UPSTREAM BLOCK');
+  });
+
+  test('classifies market data separately from risk-budget capacity', () => {
+    const result = context.foEvaluateRiskBudget_([allocation({upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Market data unavailable'})], summary);
+    expect(result.assessments[0].budgetStatus).toBe('WITHIN BUDGET');
+    expect(result.assessments[0].primaryBlocker).toBe('MARKET_DATA');
+    expect(result.summary.breachCount).toBe(0);
+    expect(result.summary.blockedCount).toBe(1);
+  });
+  test('classifies confidence separately from risk-budget capacity', () => {
+    const result = context.foEvaluateRiskBudget_([allocation({upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Confidence below deployment threshold'})], summary);
+    expect(result.assessments[0].primaryBlocker).toBe('CONFIDENCE');
+    expect(result.summary.primaryBlocker).toBe('CONFIDENCE');
+  });
+  test('keeps actual capacity breach as highest-priority blocker', () => {
+    const result = context.foEvaluateRiskBudget_([allocation({proposedTargetWeight:0.16, upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Market data unavailable'})], summary);
     expect(result.assessments[0].budgetStatus).toBe('BREACH');
-    expect(result.assessments[0].breachReason).toBe('Upstream limit');
+    expect(result.assessments[0].primaryBlocker).toBe('RISK_BUDGET_CAPACITY');
+    expect(result.assessments[0].supportingFactors).toContain('MARKET DATA');
+  });
+  test('does not mutate governed source allocations', () => {
+    const item = allocation({upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Recommendation blocked'});
+    const before = JSON.stringify(item);
+    context.foEvaluateRiskBudget_([item], summary);
+    expect(JSON.stringify(item)).toBe(before);
   });
   test('marks allocations at ninety percent utilization as constrained', () => {
     const result = context.foEvaluateRiskBudget_([allocation({proposedTargetWeight:0.135})], summary);
