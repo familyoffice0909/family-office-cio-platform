@@ -41,6 +41,59 @@ function createRuntime(options = {}) {
   return { context, lock, scriptProperties };
 }
 
+function createMorningBriefPreflightRuntime(options = {}) {
+  const dashboardSheets = new Set(options.dashboardSheets || [
+    'Executive Dashboard',
+    'Portfolio Master',
+    'Portfolio Snapshot',
+    'Portfolio Scenario Summary',
+    'Risk Budget Summary',
+    'Investment Decision Support',
+    'Executive Decision State A233',
+    'Automation Log',
+    'Executive Report Archive'
+  ]);
+
+  const ledgerSheets = new Set(options.ledgerSheets || [
+    'Version History',
+    'Knowledge Base',
+    'Canadian Market Access Library',
+    'Outcomes',
+    'Lessons Learned',
+    'Orchestration Log'
+  ]);
+
+  const dashboard = options.dashboard === null ? null : {
+    getSheetByName: jest.fn(function(sheetName) {
+      return dashboardSheets.has(sheetName)
+        ? { getName: function() { return sheetName; } }
+        : null;
+    })
+  };
+
+  const ledger = options.ledger === null ? null : {
+    getSheetByName: jest.fn(function(sheetName) {
+      return ledgerSheets.has(sheetName)
+        ? { getName: function() { return sheetName; } }
+        : null;
+    })
+  };
+
+  const context = vm.createContext({
+    console: console,
+    foDashboard_: jest.fn(function() { return dashboard; }),
+    foLedger_: jest.fn(function() { return ledger; })
+  });
+
+  vm.runInContext(read('ExecutiveReportingEngine.js'), context);
+
+  return {
+    context: context,
+    dashboard: dashboard,
+    ledger: ledger
+  };
+}
+
 describe('Wave R1.3.0.2 runtime guard', () => {
   test('accepts a complete LAB configuration', () => {
     const { context } = createRuntime();
@@ -108,6 +161,74 @@ describe('Wave R1.3.0.2 runtime guard', () => {
     expect(() => context.foDashboard_())
       .toThrow('Runtime safety blocked operation');
     expect(SpreadsheetApp.openById).not.toHaveBeenCalled();
+  });
+});
+
+describe('Morning Brief preflight', () => {
+  test('succeeds when all required Dashboard and Ledger sheets exist', () => {
+    const runtime = createMorningBriefPreflightRuntime();
+
+    const result = runtime.context.foRunMorningBriefPreflight_();
+
+    expect(result.status).toBe('SUCCESS');
+    expect(result.dataAccessStatus).toBe('LIVE');
+    expect(result.dashboard).toBe(runtime.dashboard);
+    expect(result.ledger).toBe(runtime.ledger);
+    expect(result.dashboardValidation.requiredSheetCount).toBe(9);
+    expect(result.ledgerValidation.requiredSheetCount).toBe(6);
+  });
+
+  test('fails when a required Dashboard sheet is missing', () => {
+    const runtime = createMorningBriefPreflightRuntime({
+      dashboardSheets: [
+        'Executive Dashboard',
+        'Portfolio Master',
+        'Portfolio Snapshot',
+        'Portfolio Scenario Summary',
+        'Risk Budget Summary',
+        'Investment Decision Support',
+        'Executive Decision State A233',
+        'Automation Log'
+      ]
+    });
+
+    expect(function() {
+      runtime.context.foRunMorningBriefPreflight_();
+    }).toThrow(
+      'Family Office Portfolio Dashboard is missing required sheet(s): ' +
+      'Executive Report Archive'
+    );
+  });
+
+  test('fails when a required Ledger sheet is missing', () => {
+    const runtime = createMorningBriefPreflightRuntime({
+      ledgerSheets: [
+        'Version History',
+        'Knowledge Base',
+        'Canadian Market Access Library',
+        'Outcomes',
+        'Lessons Learned'
+      ]
+    });
+
+    expect(function() {
+      runtime.context.foRunMorningBriefPreflight_();
+    }).toThrow(
+      'Family Office Investment Ledger is missing required sheet(s): ' +
+      'Orchestration Log'
+    );
+  });
+
+  test('fails when a workbook reference is unavailable', () => {
+    const runtime = createMorningBriefPreflightRuntime({
+      dashboard: null
+    });
+
+    expect(function() {
+      runtime.context.foRunMorningBriefPreflight_();
+    }).toThrow(
+      'Family Office Portfolio Dashboard workbook is unavailable.'
+    );
   });
 });
 
