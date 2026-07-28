@@ -33,7 +33,8 @@ function foRunExecutiveReportEngine() {
   try {
     foInfo_(module, 'Start', 'Executive Report Engine started.');
 
-    const dashboard = foDashboard_();
+    const preflight = foRunMorningBriefPreflight_();
+    const dashboard = preflight.dashboard;
     const integrationA233Base =
       typeof foRunExecutiveDecisionIntegrationA233 === 'function'
         ? foRunExecutiveDecisionIntegrationA233()
