@@ -1,3 +1,4 @@
+
 /************************************************************
  * ExecutiveReportingEngine.gs
  * Sprint 2.6.0 — Governed Executive Reporting
@@ -171,6 +172,62 @@ function foRunExecutiveReportEngine() {
     throw error;
   }
 }
+
+
+function foValidateRequiredSheets_(spreadsheet, requiredSheets, workbookName) {
+  if (!spreadsheet) {
+    throw new Error(
+      workbookName + ' workbook is unavailable.'
+    );
+  }
+
+  const missingSheets = requiredSheets.filter(function(sheetName) {
+    return !spreadsheet.getSheetByName(sheetName);
+  });
+
+  if (missingSheets.length) {
+    throw new Error(
+      workbookName +
+      ' is missing required sheet(s): ' +
+      missingSheets.join(', ')
+    );
+  }
+
+  return {
+    status: 'SUCCESS',
+    workbookName: workbookName,
+    requiredSheetCount: requiredSheets.length,
+    missingSheets: []
+  };
+}
+
+function foRunMorningBriefPreflight_() {
+  const dashboard = foDashboard_();
+  const ledger = foLedger_();
+
+  const dashboardValidation = foValidateRequiredSheets_(
+    dashboard,
+    FO_MORNING_BRIEF_REQUIRED_DASHBOARD_SHEETS,
+    'Family Office Portfolio Dashboard'
+  );
+
+  const ledgerValidation = foValidateRequiredSheets_(
+    ledger,
+    FO_MORNING_BRIEF_REQUIRED_LEDGER_SHEETS,
+    'Family Office Investment Ledger'
+  );
+
+  return {
+    status: 'SUCCESS',
+    dataAccessStatus: 'LIVE',
+    dashboard: dashboard,
+    ledger: ledger,
+    dashboardValidation: dashboardValidation,
+    ledgerValidation: ledgerValidation,
+    checkedAt: new Date()
+  };
+}
+
 
 function foReadGovernedExecutiveDecisions_(dashboard, integrationA233) {
   const decisionSheet = dashboard.getSheetByName(
@@ -697,3 +754,5 @@ function foRunExecutiveReportSmokeTest() {
     throw error;
   }
 }
+
+
