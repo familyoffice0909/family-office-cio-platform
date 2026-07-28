@@ -200,11 +200,52 @@ function foEvaluateRiskBudget_(allocations, scenarioSummary) {
 function foClassifyRiskBudgetUpstreamConstraint_(status, reason) {
   const normalizedStatus = String(status || '').trim().toUpperCase();
   const normalizedReason = String(reason || '').trim().toUpperCase();
-  if (!normalizedStatus || normalizedStatus === 'PASS') return {category: 'NONE', label: 'NONE'};
-  if (/MARKET|PRICE|DATA|STALE|UNAVAILABLE|REFRESH/.test(normalizedReason)) return {category: 'MARKET_DATA', label: 'MARKET DATA'};
-  if (/CONFIDENCE|CONVICTION|QUALITY|EVIDENCE/.test(normalizedReason)) return {category: 'CONFIDENCE', label: 'CONFIDENCE'};
-  if (/ALLOCATION|ELIGIB|POSITION LIMIT|MAXIMUM POSITION|BAND|CAPACITY/.test(normalizedReason)) return {category: 'ALLOCATION_ELIGIBILITY', label: 'ALLOCATION ELIGIBILITY'};
-  if (/RECOMMEND|CONTRADICTION|BLOCKED|AVOID|WAIT|HOLD|DEPLOYMENT/.test(normalizedReason)) return {category: 'RECOMMENDATION_CONTROL', label: 'RECOMMENDATION CONTROL'};
+
+  if (!normalizedStatus || normalizedStatus === 'PASS') {
+    return {category: 'NONE', label: 'NONE'};
+  }
+
+  // Market-data classification requires an explicit price, quote, or
+  // market-data failure. Generic recommendation-data wording must not
+  // be interpreted as a market-data problem.
+  if (
+    /MISSING PRICE|STALE PRICE|PRICE UNAVAILABLE|INVALID PRICE|NO CURRENT PRICE|QUOTE UNAVAILABLE|MARKET DATA UNAVAILABLE|MARKET PRICE UNAVAILABLE|REFRESH REQUIRED MARKET DATA/.test(
+      normalizedReason
+    )
+  ) {
+    return {category: 'MARKET_DATA', label: 'MARKET DATA'};
+  }
+
+  if (
+    /INSUFFICIENT RECOMMENDATION DATA|RECOMMENDATION CONTRADICTION|RECOMMENDATION NOT DEPLOYABLE|RECOMMENDATION UNAVAILABLE|NO ELIGIBLE RECOMMENDATION|RECOMMENDATION CONTROL|RECOMMEND|CONTRADICTION/.test(
+      normalizedReason
+    )
+  ) {
+    return {
+      category: 'RECOMMENDATION_CONTROL',
+      label: 'RECOMMENDATION CONTROL'
+    };
+  }
+
+  if (
+    /CONFIDENCE BELOW POLICY|LOW CONFIDENCE|INSUFFICIENT CONVICTION|INSUFFICIENT EVIDENCE|QUALITY BELOW POLICY|CONFIDENCE|CONVICTION|QUALITY|EVIDENCE/.test(
+      normalizedReason
+    )
+  ) {
+    return {category: 'CONFIDENCE', label: 'CONFIDENCE'};
+  }
+
+  if (
+    /DEPLOYMENT DECISION NOT ELIGIBLE|INVALID ALLOCATION BAND|ALLOCATION NOT ELIGIBLE|NO VALID ALLOCATION|TARGET WEIGHT NOT ELIGIBLE|POSITION LIMIT|MAXIMUM POSITION|ALLOCATION|ELIGIB|BAND/.test(
+      normalizedReason
+    )
+  ) {
+    return {
+      category: 'ALLOCATION_ELIGIBILITY',
+      label: 'ALLOCATION ELIGIBILITY'
+    };
+  }
+
   return {category: 'OTHER', label: 'OTHER UPSTREAM CONSTRAINT'};
 }
 

@@ -46,6 +46,72 @@ describe('Sprint 3.2.1 Risk Budget Classification & Executive Readability', () =
     expect(result.assessments[0].primaryBlocker).toBe('CONFIDENCE');
     expect(result.summary.primaryBlocker).toBe('CONFIDENCE');
   });
+  test('classifies insufficient recommendation data as recommendation control', () => {
+    const result = context.foEvaluateRiskBudget_([
+      allocation({
+        upstreamConstraintStatus:'BLOCKED',
+        upstreamConstraintReason:'INSUFFICIENT RECOMMENDATION DATA'
+      })
+    ], summary);
+
+    expect(result.assessments[0].primaryBlocker).toBe('RECOMMENDATION_CONTROL');
+    expect(result.assessments[0].primaryBlocker).not.toBe('MARKET_DATA');
+  });
+
+  test('classifies stale price as market data', () => {
+    const result = context.foEvaluateRiskBudget_([
+      allocation({
+        upstreamConstraintStatus:'BLOCKED',
+        upstreamConstraintReason:'Stale price'
+      })
+    ], summary);
+
+    expect(result.assessments[0].primaryBlocker).toBe('MARKET_DATA');
+  });
+
+  test('summary blocker categories reconcile to blocked position count', () => {
+    const result = context.foEvaluateRiskBudget_([
+      allocation({
+        ticker: 'ABX',
+        account: 'LIRA',
+        upstreamConstraintStatus: 'BLOCKED',
+        upstreamConstraintReason: 'INSUFFICIENT RECOMMENDATION DATA'
+      }),
+      allocation({
+        ticker: 'QBTS',
+        account: 'Interactive Brokers',
+        upstreamConstraintStatus: 'BLOCKED',
+        upstreamConstraintReason: 'Stale price'
+      }),
+      allocation({
+        ticker: 'RGTI',
+        account: 'Interactive Brokers',
+        upstreamConstraintStatus: 'BLOCKED',
+        upstreamConstraintReason: 'Confidence below policy'
+      }),
+      allocation({
+        ticker: 'QQC',
+        account: 'LIRA',
+        upstreamConstraintStatus: 'BLOCKED',
+        upstreamConstraintReason: 'INVALID ALLOCATION BAND'
+      })
+    ], summary);
+
+    const classifiedTotal =
+      result.summary.recommendationBlockCount +
+      result.summary.confidenceBlockCount +
+      result.summary.allocationBlockCount +
+      result.summary.marketDataBlockCount +
+      result.summary.otherBlockCount;
+
+    expect(result.summary.blockedCount).toBe(4);
+    expect(classifiedTotal).toBe(result.summary.blockedCount);
+    expect(result.summary.recommendationBlockCount).toBe(1);
+    expect(result.summary.confidenceBlockCount).toBe(1);
+    expect(result.summary.allocationBlockCount).toBe(1);
+    expect(result.summary.marketDataBlockCount).toBe(1);
+  });
+
   test('keeps actual capacity breach as highest-priority blocker', () => {
     const result = context.foEvaluateRiskBudget_([allocation({proposedTargetWeight:0.16, upstreamConstraintStatus:'BLOCKED', upstreamConstraintReason:'Market data unavailable'})], summary);
     expect(result.assessments[0].budgetStatus).toBe('BREACH');
