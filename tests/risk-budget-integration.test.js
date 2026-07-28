@@ -8,7 +8,7 @@ const registry = read('ModuleRegistry.js');
 const orchestrator = read('AutonomousCioOrchestrator.js');
 const schemas = read('WorksheetSchemaRegistry.js');
 const reporting = read('ExecutiveReportingEngine.js');
-describe('Sprint 3.2.0 integration contracts', () => {
+describe('Sprint 3.2.1 integration contracts', () => {
   test('configuration declares both governed worksheets', () => {
     expect(config).toContain("RISK_BUDGET_ASSESSMENT: 'Risk Budget Assessment'");
     expect(config).toContain("RISK_BUDGET_SUMMARY: 'Risk Budget Summary'");
@@ -17,6 +17,9 @@ describe('Sprint 3.2.0 integration contracts', () => {
     expect(schemas).toContain('FO_SHEETS.RISK_BUDGET_ASSESSMENT');
     expect(schemas).toContain('FO_SHEETS.RISK_BUDGET_SUMMARY');
     expect(schemas).toContain("'Risk Budget Utilization'");
+    expect(schemas).toContain("schemaVersion: '1.1'");
+    expect(schemas).toContain("'Primary Blocker'");
+    expect(schemas).toContain("'Executive Summary'");
   });
   test('module registry exposes setup and execution modules', () => {
     expect(registry).toContain('RISK_BUDGET_SETUP: foSetupRiskBudgetIntelligence');
@@ -34,6 +37,8 @@ describe('Sprint 3.2.0 integration contracts', () => {
     expect(reporting).toContain('foAppendRiskBudgetExecutiveRows_');
     expect(reporting).toContain('Portfolio Budget Utilization');
     expect(reporting).toContain('Breach Count');
+    expect(reporting).toContain('Primary Blocker');
+    expect(reporting).toContain('Blocked Positions');
     expect(reporting).toContain('Executive Directive');
   });
 });
