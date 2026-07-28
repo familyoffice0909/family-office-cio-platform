@@ -5,6 +5,27 @@
  * Sprint 3.2.0 — Risk Budget Intelligence integration
  ************************************************************/
 
+const FO_MORNING_BRIEF_REQUIRED_DASHBOARD_SHEETS = [
+  'Executive Dashboard',
+  'Portfolio Master',
+  'Portfolio Snapshot',
+  'Portfolio Scenario Summary',
+  'Risk Budget Summary',
+  'Investment Decision Support',
+  'Executive Decision State A233',
+  'Automation Log',
+  'Executive Report Archive'
+];
+
+const FO_MORNING_BRIEF_REQUIRED_LEDGER_SHEETS = [
+  'Version History',
+  'Knowledge Base',
+  'Canadian Market Access Library',
+  'Outcomes',
+  'Lessons Learned',
+  'Orchestration Log'
+];
+
 function foRunExecutiveReportEngine() {
   const module = 'ExecutiveReportingEngine';
 
