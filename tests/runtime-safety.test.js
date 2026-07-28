@@ -232,6 +232,145 @@ describe('Morning Brief preflight', () => {
   });
 });
 
+describe('Morning Brief end-to-end smoke test', () => {
+  test('runs the executive report engine through preflight, writeback, and archive', () => {
+    const dashboard = { id: 'dashboard-workbook' };
+    const outputRange = {
+      clearContent: jest.fn(),
+      setValues: jest.fn()
+    };
+    const outputSheet = {
+      getLastRow: jest.fn(() => 1),
+      getRange: jest.fn(() => outputRange)
+    };
+    const governedDecisions = [{
+      ticker: 'TEST',
+      action: 'HOLD'
+    }];
+    const integrationA233 = {
+      portfolioScenario: {
+        available: true,
+        preferredScenario: 'BALANCED'
+      }
+    };
+    const summary = {
+      averageReadiness: 82,
+      overallPriority: 'MEDIUM',
+      portfolioRisk: 'MODERATE',
+      executiveNarrative: 'Governed smoke-test narrative.',
+      totalMarketValue: 100000,
+      reviewCount: 1
+    };
+    const context = vm.createContext({
+      console,
+      Date,
+      FO_CONFIG: {
+        PLATFORM_VERSION: 'v3.2.1',
+        BASELINE: 'TEST'
+      }
+    });
+
+    vm.runInContext(read('ExecutiveReportingEngine.js'), context);
+
+    context.foInfo_ = jest.fn();
+    context.foError_ = jest.fn();
+    context.foRunMorningBriefPreflight_ = jest.fn(() => ({
+      status: 'SUCCESS',
+      dataAccessStatus: 'LIVE',
+      dashboard
+    }));
+    context.foRunExecutiveDecisionIntegrationA233 = jest.fn(
+      () => integrationA233
+    );
+    context.foApplyPortfolioScenarioExecutiveIntegration_ = jest.fn(
+      (integration, receivedDashboard) => {
+        expect(integration).toBe(integrationA233);
+        expect(receivedDashboard).toBe(dashboard);
+        return integration;
+      }
+    );
+    context.foReadGovernedExecutiveDecisions_ = jest.fn(
+      (receivedDashboard, integration) => {
+        expect(receivedDashboard).toBe(dashboard);
+        expect(integration).toBe(integrationA233);
+        return governedDecisions;
+      }
+    );
+    context.foNowId_ = jest.fn(() => 'EXEC-RPT-SMOKE');
+    context.foBuildExecutiveSummary_ = jest.fn((decisions) => {
+      expect(decisions).toBe(governedDecisions);
+      return summary;
+    });
+    context.foEnsureSheet_ = jest.fn(
+      (receivedDashboard, sheetName, headers) => {
+        expect(receivedDashboard).toBe(dashboard);
+        expect(sheetName).toBe('Executive CIO Report');
+        expect(headers).toHaveLength(10);
+        return outputSheet;
+      }
+    );
+    context.foAppendExecutiveDecisionStateRowsA233_ = jest.fn(
+      (rows, integration, reportId) => {
+        expect(integration).toBe(integrationA233);
+        expect(reportId).toBe('EXEC-RPT-SMOKE');
+        rows.push([
+          'Executive Decision State',
+          'TEST',
+          'READY',
+          '',
+          '',
+          'Smoke test row',
+          reportId,
+          'v3.2.1',
+          'TEST',
+          new Date()
+        ]);
+      }
+    );
+    context.foAppendPortfolioOptimizationExecutiveRows_ = jest.fn();
+    context.foAppendPortfolioScenarioExecutiveRows_ = jest.fn();
+    context.foAppendRiskBudgetExecutiveRows_ = jest.fn();
+    context.foAppendDecisionSectionA233_ = jest.fn();
+    context.foArchiveExecutiveReport_ = jest.fn();
+
+    const result = context.foRunExecutiveReportEngine();
+
+    expect(context.foRunMorningBriefPreflight_).toHaveBeenCalledTimes(1);
+    expect(context.foRunExecutiveDecisionIntegrationA233)
+      .toHaveBeenCalledTimes(1);
+    expect(context.foReadGovernedExecutiveDecisions_)
+      .toHaveBeenCalledWith(dashboard, integrationA233);
+    expect(context.foEnsureSheet_).toHaveBeenCalledTimes(1);
+    expect(outputSheet.getRange).toHaveBeenCalledWith(
+      2,
+      1,
+      result.rowsWritten,
+      10
+    );
+    expect(outputRange.setValues).toHaveBeenCalledTimes(1);
+    expect(outputRange.setValues.mock.calls[0][0])
+      .toHaveLength(result.rowsWritten);
+    expect(context.foArchiveExecutiveReport_).toHaveBeenCalledWith(
+      dashboard,
+      'EXEC-RPT-SMOKE',
+      summary
+    );
+    expect(context.foInfo_).toHaveBeenLastCalledWith(
+      'ExecutiveReportingEngine',
+      'Complete',
+      'Executive report generated: EXEC-RPT-SMOKE'
+    );
+    expect(context.foError_).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: 'SUCCESS',
+      reportId: 'EXEC-RPT-SMOKE',
+      rowsWritten: 4,
+      averageReadiness: 82,
+      preferredPortfolioScenario: 'BALANCED'
+    });
+  });
+});
+
 describe('Wave R1.3.0.2 runtime locking', () => {
   test('blocks protected helpers when no runtime lock is held', () => {
     const { context } = createRuntime();
