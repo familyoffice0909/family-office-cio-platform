@@ -1,16 +1,16 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.2.1',
-  RELEASE_NAME: 'Risk Budget Classification & Executive Readability',
+  PLATFORM_VERSION: 'v3.2.4',
+  RELEASE_NAME: 'Morning Brief Operational Delivery & Version Authority Correction',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.25.1600',
+  BUILD: '2026.07.29.0640',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.2.1',
+  ENGINE_VERSION: 'v3.2.4',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
@@ -25,6 +25,8 @@ const FO_CONFIG = {
 
 const FO_SHEETS = {
   AUTOMATION_LOG: 'Automation Log',
+  ORCHESTRATION_LOG: 'Orchestration Log',
+  REPORT_ARCHIVE: 'Report Archive',
   PLATFORM_HEALTH: 'Platform Health',
   PORTFOLIO_MASTER: 'Portfolio Master',
   PORTFOLIO_STATE: 'Portfolio State',
