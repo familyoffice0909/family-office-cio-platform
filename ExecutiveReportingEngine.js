@@ -15,12 +15,12 @@ const FO_MORNING_BRIEF_REQUIRED_DASHBOARD_SHEETS = [
   'Investment Decision Support',
   'Executive Decision State A233',
   'Automation Log',
-  'Executive Report Archive'
+  'Executive Report Archive',
+  'Knowledge Base'
 ];
 
 const FO_MORNING_BRIEF_REQUIRED_LEDGER_SHEETS = [
   'Version History',
-  'Knowledge Base',
   'Canadian Market Access Library',
   'Outcomes',
   'Lessons Learned',
