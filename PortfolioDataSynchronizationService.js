@@ -25,10 +25,11 @@ function foRunPortfolioDataSynchronization() {
       throw new Error('Portfolio Master does not contain a header row.');
     }
 
-    const masterHeaders = masterValues[0].map(function(header) {
+    let masterHeaders = masterValues[0].map(function(header) {
       return String(header || '').trim();
     });
 
+    masterHeaders = foEnsurePortfolioValuationEvidenceHeaders_(master, masterHeaders);
     foRequirePortfolioMasterHeaders_(masterHeaders);
 
     const enrichment = foBuildPortfolioMasterEnrichmentIndex_(
@@ -98,6 +99,28 @@ function foRunPortfolioDataSynchronization() {
   }
 }
 
+
+
+
+const FO_PORTFOLIO_VALUATION_EVIDENCE_HEADERS_ = [
+  'Price Timestamp',
+  'Price Source',
+  'Price Status',
+  'Price Basis',
+  'Valuation Status',
+  'Market Value Basis'
+];
+
+function foEnsurePortfolioValuationEvidenceHeaders_(sheet, headers) {
+  const result = headers.slice();
+  FO_PORTFOLIO_VALUATION_EVIDENCE_HEADERS_.forEach(function(header) {
+    if (result.indexOf(header) < 0) result.push(header);
+  });
+  if (result.length !== headers.length) {
+    sheet.getRange(1, 1, 1, result.length).setValues([result]);
+  }
+  return result;
+}
 
 function foAssertRequiredPortfolioSources_(summaries) {
   const failures = summaries.filter(function(summary) {
@@ -273,6 +296,26 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
     foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Target Weight', [
       'Target Weight'
     ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Price Timestamp', [
+      'Price Timestamp', 'Market Price Timestamp', 'Timestamp'
+    ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Price Source', [
+      'Price Source', 'Provider', 'Market Data Provider'
+    ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Price Status', [
+      'Price Status', 'Freshness', 'Market Data Status'
+    ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Price Basis', [
+      'Price Basis', 'Valuation Basis'
+    ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Valuation Status', [
+      'Valuation Status', 'Certification Status'
+    ]);
+    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Market Value Basis', [
+      'Market Value Basis'
+    ]);
+
+    foApplySynchronizedValuationEvidence_(output, masterHeaders, source.sheetName);
 
     const statusIndex = masterHeaders.indexOf('Status');
     if (statusIndex >= 0) output[statusIndex] = 'Active';
@@ -307,6 +350,39 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
       costBasis: totalCostBasis
     }
   };
+}
+
+
+
+function foApplySynchronizedValuationEvidence_(row, headers, sourceName) {
+  const price = foSynchronizationNumber_(row[headers.indexOf('Current Price')]);
+  const marketValue = foSynchronizationNumber_(row[headers.indexOf('Market Value')]);
+  const timestampIndex = headers.indexOf('Price Timestamp');
+  const sourceIndex = headers.indexOf('Price Source');
+  const statusIndex = headers.indexOf('Price Status');
+  const basisIndex = headers.indexOf('Price Basis');
+  const valuationIndex = headers.indexOf('Valuation Status');
+  const marketBasisIndex = headers.indexOf('Market Value Basis');
+
+  if (price > 0) {
+    if (timestampIndex >= 0 && !row[timestampIndex]) row[timestampIndex] = new Date();
+    if (sourceIndex >= 0 && !row[sourceIndex]) row[sourceIndex] = sourceName;
+    if (statusIndex >= 0 && !row[statusIndex]) row[statusIndex] = 'SOURCE_REPORTED';
+    if (basisIndex >= 0 && !row[basisIndex]) row[basisIndex] = 'SOURCE_REPORTED';
+    if (valuationIndex >= 0) row[valuationIndex] = 'PARTIALLY_CERTIFIED';
+    if (marketBasisIndex >= 0) row[marketBasisIndex] = 'DERIVED_FROM_PRICE';
+  } else if (marketValue > 0) {
+    if (sourceIndex >= 0 && !row[sourceIndex]) row[sourceIndex] = 'PORTFOLIO_MASTER';
+    if (statusIndex >= 0) row[statusIndex] = 'UNKNOWN';
+    if (basisIndex >= 0) row[basisIndex] = 'PERSISTED_FALLBACK';
+    if (valuationIndex >= 0) row[valuationIndex] = 'PARTIALLY_CERTIFIED';
+    if (marketBasisIndex >= 0) row[marketBasisIndex] = 'PERSISTED_FALLBACK';
+  } else {
+    if (statusIndex >= 0) row[statusIndex] = 'MISSING';
+    if (basisIndex >= 0) row[basisIndex] = 'UNAVAILABLE';
+    if (valuationIndex >= 0) row[valuationIndex] = 'EXCLUDED';
+    if (marketBasisIndex >= 0) row[marketBasisIndex] = 'UNAVAILABLE';
+  }
 }
 
 function foFindHeaderAlias_(headers, aliases) {
