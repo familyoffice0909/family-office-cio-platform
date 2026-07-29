@@ -1,5 +1,5 @@
 /**
- * Reporting Engine Enhancement v3.0.1
+ * Morning Brief Operational Delivery v3.2.4
  * Production write-back readiness for governed executive reporting.
  *
  * Reuses the existing Portfolio Snapshot, Executive Reporting,
@@ -7,7 +7,7 @@
  * create a second recommendation producer or a parallel history store.
  */
 
-const FO_EXECUTIVE_REPORT_PERSISTENCE_VERSION_ = 'v3.0.1';
+const FO_EXECUTIVE_REPORT_PERSISTENCE_VERSION_ = 'v3.2.4';
 
 function foRunExecutiveReportProductionReady() {
   return foWithRuntimeLock_(
@@ -114,10 +114,27 @@ function foRunExecutiveReportProductionReadyProtected_() {
       );
     }
 
+    const orchestrationRunId = foAppendExecutiveReportOrchestrationV324_(
+      reportResult.reportId,
+      executionMode,
+      snapshotId
+    );
+
+    SpreadsheetApp.flush();
+
+    if (!foVerifyExecutiveReportOrchestrationV324_(orchestrationRunId)) {
+      throw new Error(
+        'Executive report orchestration verification failed: ' +
+        orchestrationRunId
+      );
+    }
+
     const persistence = {
       version: FO_EXECUTIVE_REPORT_PERSISTENCE_VERSION_,
       executionMode: executionMode,
       activeRunId: activeRunId,
+      reportRunId: reportResult.reportId,
+      orchestrationRunId: orchestrationRunId,
       analysisStatus: 'COMPLETED',
       writeBackStatus: 'PERSISTED',
       recommendationEventStatus: recommendationEventStatus,
@@ -126,6 +143,7 @@ function foRunExecutiveReportProductionReadyProtected_() {
       portfolioSnapshotId: snapshotId,
       dashboardReportArchiveStatus: 'PERSISTED',
       ledgerReportArchiveStatus: 'PERSISTED',
+      ledgerOrchestrationStatus: 'PERSISTED',
       executiveDashboardStatus: activeRunId
         ? 'ORCHESTRATOR STEP PENDING'
         : 'PERSISTED'
@@ -262,6 +280,55 @@ function foSheetContainsIdV301_(sheet, headerName, expectedId) {
   return values.slice(1).some(function(row) {
     return String(row[idIndex] || '').trim() === target;
   });
+}
+
+function foAppendExecutiveReportOrchestrationV324_(
+  reportId,
+  executionMode,
+  snapshotId
+) {
+  const runId = String(reportId || '').trim();
+  if (!runId) {
+    throw new Error('Morning Brief orchestration requires a Report ID.');
+  }
+
+  const ledger = foLedger_();
+  const orchestration = foEnsureSheet_(
+    ledger,
+    FO_SHEETS.ORCHESTRATION_LOG,
+    [
+      'Timestamp',
+      'Run ID',
+      'Channel',
+      'Action',
+      'Status',
+      'Message',
+      'Version'
+    ]
+  );
+
+  orchestration.appendRow([
+    new Date(),
+    runId,
+    'Morning Brief',
+    'Generate and persist executive report',
+    'SUCCESS',
+    'Dashboard and Ledger persistence verified. Mode: ' +
+      String(executionMode || 'UNKNOWN') +
+      ' | Snapshot ID: ' + String(snapshotId || ''),
+    FO_CONFIG.PLATFORM_VERSION
+  ]);
+
+  return runId;
+}
+
+function foVerifyExecutiveReportOrchestrationV324_(runId) {
+  const ledger = foLedger_();
+  return foSheetContainsIdV301_(
+    ledger.getSheetByName(FO_SHEETS.ORCHESTRATION_LOG),
+    'Run ID',
+    runId
+  );
 }
 
 function foBuildExecutivePersistencePresentationV301_(persistence) {
