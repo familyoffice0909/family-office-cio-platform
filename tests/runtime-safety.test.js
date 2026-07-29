@@ -51,12 +51,12 @@ function createMorningBriefPreflightRuntime(options = {}) {
     'Investment Decision Support',
     'Executive Decision State A233',
     'Automation Log',
-    'Executive Report Archive'
+    'Executive Report Archive',
+    'Knowledge Base'
   ]);
 
   const ledgerSheets = new Set(options.ledgerSheets || [
     'Version History',
-    'Knowledge Base',
     'Canadian Market Access Library',
     'Outcomes',
     'Lessons Learned',
@@ -174,8 +174,8 @@ describe('Morning Brief preflight', () => {
     expect(result.dataAccessStatus).toBe('LIVE');
     expect(result.dashboard).toBe(runtime.dashboard);
     expect(result.ledger).toBe(runtime.ledger);
-    expect(result.dashboardValidation.requiredSheetCount).toBe(9);
-    expect(result.ledgerValidation.requiredSheetCount).toBe(6);
+    expect(result.dashboardValidation.requiredSheetCount).toBe(10);
+    expect(result.ledgerValidation.requiredSheetCount).toBe(5);
   });
 
   test('fails when a required Dashboard sheet is missing', () => {
@@ -204,7 +204,6 @@ describe('Morning Brief preflight', () => {
     const runtime = createMorningBriefPreflightRuntime({
       ledgerSheets: [
         'Version History',
-        'Knowledge Base',
         'Canadian Market Access Library',
         'Outcomes',
         'Lessons Learned'
