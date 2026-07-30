@@ -68,6 +68,13 @@ function foRunExecutiveReportEngine() {
     const reportId = foNowId_('EXEC-RPT');
     const summary = foBuildExecutiveSummary_(decisions);
 
+    const valuationSummary = foReadMetricSheet_(
+      dashboard,
+      'Portfolio Valuation Summary',
+      'Metric',
+      'Value'
+    );
+
     const output = foEnsureSheet_(dashboard, 'Executive CIO Report', [
       'Section',
       'Metric / Ticker',
@@ -118,6 +125,12 @@ function foRunExecutiveReportEngine() {
       FO_CONFIG.BASELINE,
       new Date()
     ]);
+
+    foAppendPortfolioValuationExecutiveRows_(
+      rows,
+      valuationSummary,
+      reportId
+    );
 
     foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId);
     foAppendPortfolioScenarioExecutiveRows_(
@@ -438,6 +451,234 @@ function foAppendDecisionSection_(rows, sectionName, decisions, actions, reportI
   });
 }
 
+
+function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
+  metrics = metrics || {};
+
+  const totalMarketValue = Number(
+    metrics['Total Market Value'] ||
+    metrics['Total Gross Portfolio Market Value'] ||
+    0
+  );
+
+  const totalCostBasis = Number(
+    metrics['Total Cost Basis'] ||
+    metrics['Total Documented Book Value'] ||
+    0
+  );
+
+  const unrealizedGainLoss = Number(
+    metrics['Unrealized Gain/Loss'] ||
+    metrics['Unrealized Variance'] ||
+    0
+  );
+
+  const unrealizedGainLossPct = Number(
+    metrics['Unrealized Gain/Loss %'] ||
+    metrics['Unrealized Variance %'] ||
+    0
+  );
+
+  const priceCoverage = Number(
+    metrics['Price Coverage %'] ||
+    metrics['Market Price Coverage %'] ||
+    0
+  );
+
+  const costBasisCoverage = Number(
+    metrics['Cost Basis Coverage %'] ||
+    metrics['Book Value Coverage %'] ||
+    0
+  );
+
+  const missingPriceCount = Number(
+    metrics['Missing Price Count'] ||
+    metrics['Missing Prices'] ||
+    0
+  );
+
+  const reconciliationVariance = Number(
+    metrics['Reconciliation Variance'] ||
+    metrics['Portfolio Reconciliation Variance'] ||
+    0
+  );
+
+  const reconciliationStatus = String(
+    metrics['Reconciliation Status'] || 'NOT AVAILABLE'
+  );
+
+  const certificationStatus = String(
+    metrics['Certification Status'] ||
+    metrics['Portfolio Certification'] ||
+    'NOT AVAILABLE'
+  );
+
+  const valuationTimestamp =
+    metrics['Valuation Timestamp'] ||
+    metrics['Holdings Timestamp'] ||
+    '';
+
+  const priceBasis = String(
+    metrics['Price Basis'] ||
+    metrics['Market Price Basis'] ||
+    'NOT AVAILABLE'
+  );
+
+  const reconciliationPassed =
+    reconciliationStatus.toUpperCase() === 'RECONCILED' ||
+    reconciliationStatus.toUpperCase() === 'PASS';
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Certification Status',
+    certificationStatus,
+    certificationStatus.toUpperCase() === 'CERTIFIED'
+      ? 'NORMAL'
+      : 'CRITICAL',
+    certificationStatus.toUpperCase() === 'CERTIFIED'
+      ? 'LOW'
+      : 'HIGH',
+    'Certification depends on complete governed evidence and successful reconciliation.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Reconciliation Status',
+    reconciliationStatus,
+    reconciliationPassed ? 'NORMAL' : 'CRITICAL',
+    reconciliationPassed && Math.abs(reconciliationVariance) <= 0.01
+      ? 'LOW'
+      : 'HIGH',
+    'Reconciliation variance: C$' +
+      reconciliationVariance +
+      '; governed tolerance is within C$0.01.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Total Market Value',
+    totalMarketValue,
+    '',
+    '',
+    'Persisted governed portfolio valuation total.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Total Cost Basis',
+    totalCostBasis,
+    costBasisCoverage >= 100 ? 'NORMAL' : 'HIGH',
+    costBasisCoverage >= 100 ? 'LOW' : 'MEDIUM',
+    'Documented book value / cost basis across active positions.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Unrealized Gain / Loss',
+    unrealizedGainLoss,
+    '',
+    '',
+    'Unrealized variance versus documented cost basis.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Unrealized Gain / Loss %',
+    unrealizedGainLossPct,
+    '',
+    '',
+    'Unrealized variance percentage where cost basis is available.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Price Coverage %',
+    priceCoverage,
+    priceCoverage >= 100 ? 'NORMAL' : 'HIGH',
+    priceCoverage >= 100 ? 'LOW' : 'MEDIUM',
+    'Coverage across all active positions.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Cost Basis Coverage %',
+    costBasisCoverage,
+    costBasisCoverage >= 100 ? 'NORMAL' : 'HIGH',
+    costBasisCoverage >= 100 ? 'LOW' : 'MEDIUM',
+    'Coverage across all active positions.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Missing Price Count',
+    missingPriceCount,
+    missingPriceCount === 0 ? 'NORMAL' : 'CRITICAL',
+    missingPriceCount === 0 ? 'LOW' : 'HIGH',
+    'Active positions without a supported current or persisted fallback price.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Valuation Timestamp',
+    valuationTimestamp || 'NOT AVAILABLE',
+    valuationTimestamp ? 'NORMAL' : 'HIGH',
+    valuationTimestamp ? 'LOW' : 'MEDIUM',
+    'Persisted valuation evidence timestamp.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Valuation Evidence',
+    'Price Basis',
+    priceBasis,
+    priceBasis === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
+    priceBasis === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
+    'Live, delayed, prior close, persisted fallback, or estimated basis.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+}
 
 function foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId) {
   const sheet = dashboard.getSheetByName(

@@ -85,6 +85,7 @@ function createMorningBriefPreflightRuntime(options = {}) {
     foLedger_: jest.fn(function() { return ledger; })
   });
 
+  vm.runInContext(read('ExecutiveDashboardEngine.js'), context);
   vm.runInContext(read('ExecutiveReportingEngine.js'), context);
 
   return {
@@ -233,7 +234,37 @@ describe('Morning Brief preflight', () => {
 
 describe('Morning Brief end-to-end smoke test', () => {
   test('runs the executive report engine through preflight, writeback, and archive', () => {
-    const dashboard = { id: 'dashboard-workbook' };
+    const valuationValues = [
+      ['Metric', 'Value'],
+      ['Certification Status', 'CERTIFIED'],
+      ['Reconciliation Status', 'PASS'],
+      ['Total Market Value', 100000],
+      ['Total Cost Basis', 95000],
+      ['Unrealized Gain/Loss', 5000],
+      ['Unrealized Gain/Loss %', 5.26],
+      ['Price Coverage %', 100],
+      ['Cost Basis Coverage %', 100],
+      ['Missing Price Count', 0],
+      ['Reconciliation Variance', 0],
+      ['Price Basis', 'LIVE'],
+      ['Valuation Timestamp', new Date()]
+    ];
+
+    const valuationSheet = {
+      getDataRange: jest.fn(() => ({
+        getValues: jest.fn(() => valuationValues)
+      }))
+    };
+
+    const dashboard = {
+      id: 'dashboard-workbook',
+      getSheetByName: jest.fn((name) => {
+        if (name === 'Portfolio Valuation Summary') {
+          return valuationSheet;
+        }
+        return null;
+      })
+    };
     const outputRange = {
       clearContent: jest.fn(),
       setValues: jest.fn()
@@ -269,6 +300,7 @@ describe('Morning Brief end-to-end smoke test', () => {
       }
     });
 
+    vm.runInContext(read('ExecutiveDashboardEngine.js'), context);
     vm.runInContext(read('ExecutiveReportingEngine.js'), context);
 
     context.foInfo_ = jest.fn();
@@ -363,7 +395,7 @@ describe('Morning Brief end-to-end smoke test', () => {
     expect(result).toEqual({
       status: 'SUCCESS',
       reportId: 'EXEC-RPT-SMOKE',
-      rowsWritten: 4,
+      rowsWritten: 15,
       averageReadiness: 82,
       preferredPortfolioScenario: 'BALANCED'
     });
