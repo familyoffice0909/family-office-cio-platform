@@ -1,13 +1,14 @@
 /**
- * Morning Brief Operational Delivery v3.2.4
+ * Morning Brief Operational Delivery
  * Production write-back readiness for governed executive reporting.
+ * Version governed by FO_CONFIG.PLATFORM_VERSION.
  *
  * Reuses the existing Portfolio Snapshot, Executive Reporting,
  * Executive Dashboard, and Ledger Report Archive services. It does not
  * create a second recommendation producer or a parallel history store.
  */
 
-const FO_EXECUTIVE_REPORT_PERSISTENCE_VERSION_ = 'v3.2.4';
+const FO_EXECUTIVE_REPORT_PERSISTENCE_VERSION_ = FO_CONFIG.PLATFORM_VERSION;
 
 function foRunExecutiveReportProductionReady() {
   return foWithRuntimeLock_(
