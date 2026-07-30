@@ -24,7 +24,18 @@ function foRunPortfolioValuation() {
     foWritePortfolioValuationSummary_(dashboard, result);
 
     foInfo_(module, 'Complete', 'Portfolio valuation completed.');
-    return result;
+
+    // Convert the runtime response into an Execution API-safe object.
+    const runtimeResult = JSON.parse(
+      JSON.stringify(result, function (key, value) {
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+        return value;
+      })
+    );
+
+    return runtimeResult;
   } catch (error) {
     foError_(module, 'Failure', error);
     throw error;
