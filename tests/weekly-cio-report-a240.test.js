@@ -42,7 +42,7 @@ describe('Wave A2.4.0 static integration', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
 
-    expect(config).toContain("PLATFORM_VERSION: 'v3.2.4'");
+    expect(config).toContain("PLATFORM_VERSION: 'v3.2.5'");
 
     expect(config).toContain(
 
@@ -52,7 +52,7 @@ describe('Wave A2.4.0 static integration', () => {
 
     expect(config).toContain("BASELINE: 'CB-002'");
 
-    expect(packageJson.version).toBe('3.2.4');
+    expect(packageJson.version).toBe('3.2.5');
 
 
   });

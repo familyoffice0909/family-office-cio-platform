@@ -7,20 +7,20 @@ const vm = require('vm');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-describe('v3.2.4 Morning Brief operational delivery', () => {
-  test('uses v3.2.4 as the single configured version authority', () => {
+describe('v3.2.5 Morning Brief operational delivery', () => {
+  test('uses v3.2.5 as the single configured version authority', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
     const packageLock = JSON.parse(read('package-lock.json'));
 
-    expect(config).toContain("PLATFORM_VERSION: 'v3.2.4'");
-    expect(config).toContain("ENGINE_VERSION: 'v3.2.4'");
+    expect(config).toContain("PLATFORM_VERSION: 'v3.2.5'");
+    expect(config).toContain("ENGINE_VERSION: 'v3.2.5'");
     expect(config).toContain(
       "RELEASE_NAME: 'Morning Brief Operational Delivery & Version Authority Correction'"
     );
-    expect(packageJson.version).toBe('3.2.4');
-    expect(packageLock.version).toBe('3.2.4');
-    expect(packageLock.packages[''].version).toBe('3.2.4');
+    expect(packageJson.version).toBe('3.2.5');
+    expect(packageLock.version).toBe('3.2.5');
+    expect(packageLock.packages[''].version).toBe('3.2.5');
   });
 
   test('report, dashboard, archive, and orchestration derive version from FO_CONFIG', () => {
@@ -58,7 +58,7 @@ describe('v3.2.4 Morning Brief operational delivery', () => {
       console,
       Date,
       FO_CONFIG: {
-        PLATFORM_VERSION: 'v3.2.4'
+        PLATFORM_VERSION: 'v3.2.5'
       },
       FO_SHEETS: {
         ORCHESTRATION_LOG: 'Orchestration Log'
@@ -96,7 +96,7 @@ describe('v3.2.4 Morning Brief operational delivery', () => {
     expect(row[3]).toBe('Generate and persist executive report');
     expect(row[4]).toBe('SUCCESS');
     expect(row[5]).toContain('Snapshot ID: SNAPSHOT-TEST');
-    expect(row[6]).toBe('v3.2.4');
+    expect(row[6]).toBe('v3.2.5');
   });
 
   test('runs the production-ready wrapper on weekdays and skips weekends', () => {
