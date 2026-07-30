@@ -18,6 +18,13 @@ function foRunExecutiveDashboardEngine() {
       'Value'
     );
 
+    const valuationSummary = foReadMetricSheet_(
+      dashboard,
+      'Portfolio Valuation Summary',
+      'Metric',
+      'Value'
+    );
+
     const executiveReportSummary = foReadExecutiveReportSummary_(dashboard);
     const cioDecisions = foReadCioDecisionRows_(dashboard);
     const marketIntel = foReadMarketIntelligenceRows_(dashboard);
@@ -33,6 +40,7 @@ function foRunExecutiveDashboardEngine() {
 
     const rows = foBuildExecutiveDashboardRows_(
       portfolioSummary,
+      valuationSummary,
       executiveReportSummary,
       cioDecisions,
       marketIntel
@@ -136,11 +144,13 @@ function foReadCioDecisionRows_(spreadsheet) {
     rows.push({
       ticker: ticker,
       company: foGetVal_(values[r], headers, 'Company'),
-        account:
-    foGetVal_(values[r], headers, 'Account') ||
-    foGetVal_(values[r], headers, 'Portfolio Account') ||
-    '',
-  marketValue: foNum_(foGetVal_(values[r], headers, 'Market Value')),
+      account:
+        foGetVal_(values[r], headers, 'Account') ||
+        foGetVal_(values[r], headers, 'Portfolio Account') ||
+        '',
+      marketValue: foNum_(
+        foGetVal_(values[r], headers, 'Market Value')
+      ),
       cioReadiness: foNum_(foGetVal_(values[r], headers, 'CIO Readiness')),
       cioAction: foGetVal_(values[r], headers, 'CIO Action'),
       priority: foGetVal_(values[r], headers, 'Priority'),
@@ -181,9 +191,78 @@ function foReadMarketIntelligenceRows_(spreadsheet) {
   return rows;
 }
 
-function foBuildExecutiveDashboardRows_(portfolioSummary, executiveReportSummary, cioDecisions, marketIntel) {
+function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, executiveReportSummary, cioDecisions, marketIntel) {
   const totalMarketValue = Number(portfolioSummary['Total Market Value'] || 0);
   const totalPositions = Number(portfolioSummary['Total Positions'] || cioDecisions.length || 0);
+
+  const valuationTotalMarketValue = Number(
+    valuationSummary['Total Market Value'] ||
+    valuationSummary['Total Gross Portfolio Market Value'] ||
+    0
+  );
+
+  const totalCostBasis = Number(
+    valuationSummary['Total Cost Basis'] ||
+    valuationSummary['Total Documented Book Value'] ||
+    0
+  );
+
+  const unrealizedGainLoss = Number(
+    valuationSummary['Unrealized Gain/Loss'] ||
+    valuationSummary['Unrealized Variance'] ||
+    0
+  );
+
+  const unrealizedGainLossPct = Number(
+    valuationSummary['Unrealized Gain/Loss %'] ||
+    valuationSummary['Unrealized Variance %'] ||
+    0
+  );
+
+  const priceCoverage = Number(
+    valuationSummary['Price Coverage %'] ||
+    valuationSummary['Market Price Coverage %'] ||
+    0
+  );
+
+  const costBasisCoverage = Number(
+    valuationSummary['Cost Basis Coverage %'] ||
+    valuationSummary['Book Value Coverage %'] ||
+    0
+  );
+
+  const missingPriceCount = Number(
+    valuationSummary['Missing Price Count'] ||
+    valuationSummary['Missing Prices'] ||
+    0
+  );
+
+  const reconciliationVariance = Number(
+    valuationSummary['Reconciliation Variance'] ||
+    valuationSummary['Portfolio Reconciliation Variance'] ||
+    0
+  );
+
+  const reconciliationStatus = String(
+    valuationSummary['Reconciliation Status'] || 'NOT AVAILABLE'
+  );
+
+  const certificationStatus = String(
+    valuationSummary['Certification Status'] ||
+    valuationSummary['Portfolio Certification'] ||
+    'NOT AVAILABLE'
+  );
+
+  const valuationTimestamp =
+    valuationSummary['Valuation Timestamp'] ||
+    valuationSummary['Holdings Timestamp'] ||
+    '';
+
+  const priceBasis = String(
+    valuationSummary['Price Basis'] ||
+    valuationSummary['Market Price Basis'] ||
+    'NOT AVAILABLE'
+  );
 
   const readinessMetric = executiveReportSummary['Overall CIO Readiness'] || {};
   const totalMarketValueMetric = executiveReportSummary['Total Market Value'] || {};
@@ -231,7 +310,14 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, executiveReportSummary
   rows.push(['', '', '', '']);
 
   rows.push(['1. Executive Summary', '', '', '']);
-  rows.push(['Total Portfolio Value', totalMarketValueMetric.value || totalMarketValue, '🟢', 'From Portfolio Engine / Executive Report.']);
+  rows.push([
+    'Total Portfolio Value',
+    valuationTotalMarketValue || totalMarketValueMetric.value || totalMarketValue,
+    certificationStatus.toUpperCase() === 'CERTIFIED' ? '🟢' : '🟡',
+    valuationTotalMarketValue
+      ? 'Governed Portfolio Valuation Summary.'
+      : 'Portfolio Engine fallback.'
+  ]);
   rows.push(['Total Positions', totalPositions, '🟢', 'Active holdings included in Portfolio Snapshot.']);
   rows.push(['Overall CIO Readiness', avgReadiness, foReadinessStatus_(avgReadiness), readinessMetric.notes || 'Average readiness across CIO decisions.']);
   rows.push(['Actions Requiring Review', reviewMetric.value || reviewCount, reviewCount > 0 ? '🟡' : '🟢', 'Items requiring manual CIO review.']);
@@ -239,20 +325,77 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, executiveReportSummary
   rows.push(['High Priority Actions', highPriorityActions, highPriorityActions > 0 ? '🟡' : '🟢', 'High-priority CIO actions.']);
   rows.push(['', '', '', '']);
 
-  rows.push(['2. Capital Deployment', '', '', '']);
+  rows.push(['2. Portfolio Valuation Evidence','','','']);
+
+  rows.push(['Certification Status',certificationStatus,
+    certificationStatus.toUpperCase()==='CERTIFIED'?'🟢':'🔴',
+    'Governed certification status.']);
+
+  rows.push(['Reconciliation Status',reconciliationStatus,
+    reconciliationStatus.toUpperCase()==='RECONCILED'?'🟢':'🔴',
+    'Portfolio reconciliation control.']);
+
+  rows.push(['Reconciliation Variance',
+    reconciliationVariance,
+    Math.abs(reconciliationVariance)<=0.01?'🟢':'🔴',
+    'Expected tolerance ≤ C$0.01.']);
+
+  rows.push(['Total Cost Basis',
+    totalCostBasis,
+    costBasisCoverage>=100?'🟢':'🟡',
+    'Documented cost basis.']);
+
+  rows.push(['Unrealized Gain / Loss',
+    unrealizedGainLoss,
+    '',
+    'Market value minus cost basis.']);
+
+  rows.push(['Unrealized Gain / Loss %',
+    unrealizedGainLossPct,
+    '',
+    'Percentage variance versus cost basis.']);
+
+  rows.push(['Price Coverage %',
+    priceCoverage,
+    priceCoverage>=100?'🟢':'🟡',
+    'Coverage across active positions.']);
+
+  rows.push(['Cost Basis Coverage %',
+    costBasisCoverage,
+    costBasisCoverage>=100?'🟢':'🟡',
+    'Coverage across active positions.']);
+
+  rows.push(['Missing Price Count',
+    missingPriceCount,
+    missingPriceCount===0?'🟢':'🔴',
+    'Active holdings without supported pricing.']);
+
+  rows.push(['Valuation Timestamp',
+    valuationTimestamp||'NOT AVAILABLE',
+    valuationTimestamp?'🟢':'🟡',
+    'Persisted valuation evidence timestamp.']);
+
+  rows.push(['Price Basis',
+    priceBasis,
+    priceBasis==='NOT AVAILABLE'?'🟡':'🟢',
+    'Live, delayed, prior close, persisted fallback or estimated.']);
+
+  rows.push(['','','','']);
+
+  rows.push(['3. Capital Deployment', '', '', '']);
   rows.push(['Deploy Capital Count', deployCapital.length, deployCapital.length > 0 ? '🔴' : '🟢', foJoinTickers_(deployCapital)]);
   rows.push(['Buy / Add Count', buyAdd.length, buyAdd.length > 0 ? '🟡' : '🟢', foJoinTickers_(buyAdd)]);
   rows.push(['Watch / Review Count', watchReview.length, watchReview.length > 0 ? '🟡' : '🟢', foJoinTickers_(watchReview)]);
   rows.push(['Top Opportunity', topOpportunity.ticker || 'N/A', topOpportunity.status || '', topOpportunity.notes || '']);
   rows.push(['', '', '', '']);
 
-  rows.push(['3. Risk Monitoring', '', '', '']);
+  rows.push(['4. Risk Monitoring', '', '', '']);
   rows.push(['Largest Position', largestPosition.ticker || 'N/A', '', largestPosition.notes || '']);
   rows.push(['Highest Risk Holding', highestRisk.ticker || 'N/A', highestRisk.status || '', highestRisk.notes || '']);
   rows.push(['High Risk Holdings Count', foCountRisk_(cioDecisions, 'HIGH'), foCountRisk_(cioDecisions, 'HIGH') > 0 ? '🟡' : '🟢', 'Count of holdings rated High risk.']);
   rows.push(['', '', '', '']);
 
-  rows.push(['4. Market Intelligence', '', '', '']);
+  rows.push(['5. Market Intelligence', '', '', '']);
   rows.push(['Average Buy Zone Confidence', foAverage_(marketIntel.map(function(x) { return Number(x.buyZoneConfidence || 0); })), '', 'Average across scored holdings.']);
   rows.push(['Average Conviction Score', foAverage_(marketIntel.map(function(x) { return Number(x.convictionScore || 0); })), '', 'Average across scored holdings.']);
   rows.push(['Average Materiality Score', foAverage_(marketIntel.map(function(x) { return Number(x.materialityScore || 0); })), '', 'Average across scored holdings.']);
