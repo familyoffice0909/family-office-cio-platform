@@ -203,7 +203,18 @@ function foReadMarketDataCache_(marketSheet) {
     if (!ticker) continue;
 
     if (price > 0) {
-      priceMap[ticker] = price;
+    priceMap[ticker] = {
+      price: price,
+      evidence: {
+        provider: 'GOOGLEFINANCE',
+        priceTimestamp: values[r][0],
+        freshness: 'CURRENT',
+        valuationBasis: 'LIVE_OR_DELAYED',
+        status: 'PRICE_FOUND'
+      }
+    };
+
+
       marketSheet.getRange(r + 1, statusIndex + 1).setValue('PRICE_FOUND');
       marketSheet.getRange(r + 1, notesIndex + 1).setValue('Price returned by GOOGLEFINANCE.');
     } else {
@@ -235,9 +246,15 @@ function foApplyMarketDataToPortfolioMaster_(portfolioSheet, priceMap) {
     const ticker = String(values[r][tickerIndex] || '').trim().toUpperCase();
     if (!ticker) continue;
 
-    const price = priceMap[ticker];
+   const marketRecord = priceMap[ticker];
 
-    if (price && price > 0) {
+   const price =
+     marketRecord && typeof marketRecord === 'object'
+       ? Number(marketRecord.price || 0)
+       : Number(marketRecord || 0);
+
+   if (price > 0) {
+
       portfolioSheet.getRange(r + 1, priceIndex + 1).setValue(price);
       updatedPrices++;
 
