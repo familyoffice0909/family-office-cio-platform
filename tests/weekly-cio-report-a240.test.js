@@ -6,6 +6,9 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+const packageJson = require('../package.json');
+const packageLock = require('../package-lock.json');
+
 describe('Wave A2.4.0 static integration', () => {
   test('weekly report entry points are present', () => {
     const source = read('WeeklyCioReportA240.js');
@@ -38,21 +41,22 @@ describe('Wave A2.4.0 static integration', () => {
     expect(read('Menu.js')).toContain('foRunWeeklyCioReportSmokeTestA240');
   });
 
-  test('released platform metadata is reconciled to v3.2.0 and CB-002', () => {
+  test('released platform metadata is reconciled to  and CB-002', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
 
-    expect(config).toContain("PLATFORM_VERSION: 'v3.2.5'");
+    expect(config).toContain(
+  `PLATFORM_VERSION: 'v${packageJson.version}'`
+);
 
     expect(config).toContain(
-
-      "RELEASE_NAME: 'Morning Brief Operational Delivery & Version Authority Correction'"
-
+      
+      `RELEASE_NAME: '${packageJson.releaseName}'`
     );
 
     expect(config).toContain("BASELINE: 'CB-002'");
 
-    expect(packageJson.version).toBe('3.2.5');
+    expect(packageJson.version).toBe(packageLock.version);
 
 
   });

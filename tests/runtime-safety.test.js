@@ -395,7 +395,7 @@ describe('Morning Brief end-to-end smoke test', () => {
     expect(result).toEqual({
       status: 'SUCCESS',
       reportId: 'EXEC-RPT-SMOKE',
-      rowsWritten: 15,
+      rowsWritten: 23,
       averageReadiness: 82,
       preferredPortfolioScenario: 'BALANCED'
     });

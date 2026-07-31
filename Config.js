@@ -1,16 +1,25 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
+<<<<<<< HEAD
   PLATFORM_VERSION: 'v3.2.5',
   RELEASE_NAME: 'Morning Brief Operational Delivery & Version Authority Correction',
+=======
+  PLATFORM_VERSION: 'v3.2.8',
+  RELEASE_NAME: 'Morning Brief Certification and Valuation Evidence Integrity',
+>>>>>>> lab/develop
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.29.0640',
+  BUILD: '2026.07.30.v327-dev',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
+<<<<<<< HEAD
   ENGINE_VERSION: 'v3.2.5',
+=======
+  ENGINE_VERSION: 'v3.2.7',
+>>>>>>> lab/develop
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
@@ -183,3 +192,43 @@ const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.WEEKLY_CIO_REPORT_ARCHIVE_A240,
   FO_SHEETS.WEEKLY_CIO_REPORT_VALIDATION_A240
 ];
+
+/**
+ * Governed runtime version accessors.
+ * These helpers centralize access to FO_CONFIG version metadata.
+ */
+function foGetPlatformVersion() {
+  return FO_CONFIG.PLATFORM_VERSION;
+}
+
+function foGetEngineVersion() {
+  return FO_CONFIG.ENGINE_VERSION;
+}
+
+function foGetReleaseName() {
+  return FO_CONFIG.RELEASE_NAME;
+}
+
+function foGetBuildVersion() {
+  return FO_CONFIG.BUILD;
+}
+
+function foValidateRuntimeVersion() {
+  const requiredProperties = [
+    'PLATFORM_VERSION',
+    'ENGINE_VERSION',
+    'RELEASE_NAME',
+    'BUILD'
+  ];
+
+  requiredProperties.forEach(function (property) {
+    if (!FO_CONFIG[property]) {
+      throw new Error(
+        'FO_CONFIG missing required property: ' + property
+      );
+    }
+  });
+
+  return true;
+}
+
