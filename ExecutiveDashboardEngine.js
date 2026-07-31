@@ -237,6 +237,19 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
     0
   );
 
+  const valuedPositions = Number(
+    valuationSummary['Valued Positions'] || 0
+  );
+
+  const totalActivePositions = Number(
+    valuationSummary['Total Active Positions'] || 0
+  );
+
+  const missingCostBasisCount = Number(
+    valuationSummary['Missing Cost Basis Count'] || 0
+  );
+
+
   const reconciliationVariance = Number(
     valuationSummary['Reconciliation Variance'] ||
     valuationSummary['Portfolio Reconciliation Variance'] ||
@@ -360,10 +373,25 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
     priceCoverage>=100?'🟢':'🟡',
     'Coverage across active positions.']);
 
+  rows.push(['Valued Positions',
+    valuedPositions,
+    valuedPositions === totalActivePositions ? '🟢' : '🟡',
+    'Positions with supported market valuation.']);
+
+  rows.push(['Total Active Positions',
+    totalActivePositions,
+    '🟢',
+    'Active holdings included in valuation.']);
+
   rows.push(['Cost Basis Coverage %',
     costBasisCoverage,
     costBasisCoverage>=100?'🟢':'🟡',
     'Coverage across active positions.']);
+
+  rows.push(['Missing Cost Basis Count',
+    missingCostBasisCount,
+    missingCostBasisCount===0 ? '🟢' : '🔴',
+    'Active holdings without documented cost basis.']);
 
   rows.push(['Missing Price Count',
     missingPriceCount,
