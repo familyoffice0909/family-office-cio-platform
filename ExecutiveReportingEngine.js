@@ -520,6 +520,31 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     priceCoverage >= 1 ? 'NORMAL' : 'HIGH',
     priceCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Coverage ratio across active positions.');
+
+
+  add(
+    'Valued Positions',
+    Number(metrics['Valued Positions'] || 0),
+    '',
+    '',
+    'Positions successfully valued using governed valuation evidence.'
+  );
+
+  add(
+    'Total Active Positions',
+    Number(metrics['Total Active Positions'] || 0),
+    '',
+    '',
+    'Total active portfolio positions considered during valuation.'
+  );
+
+  add(
+    'Missing Cost Basis Count',
+    Number(metrics['Missing Cost Basis Count'] || 0),
+    Number(metrics['Missing Cost Basis Count'] || 0) === 0 ? 'NORMAL' : 'HIGH',
+    Number(metrics['Missing Cost Basis Count'] || 0) === 0 ? 'LOW' : 'MEDIUM',
+    'Positions without documented cost basis.'
+  );
   add('Cost Basis Coverage %', costBasisCoverage,
     costBasisCoverage >= 1 ? 'NORMAL' : 'HIGH',
     costBasisCoverage >= 1 ? 'LOW' : 'MEDIUM',
