@@ -1,6 +1,6 @@
 {
   "name": "family-office-co-platform",
-  "version": "3.2.5",
+  "version": "3.2.7",
   "private": true,
   "description": "Institutional-grade Family Office CIO Platform for Google Apps Script and Google Sheets",
   "scripts": {
@@ -17,5 +17,6 @@
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
     "jest": "^30.0.0"
-  }
+  },
+  "releaseName": "Morning Brief Certification and Valuation Evidence Integrity"
 }
