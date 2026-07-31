@@ -1,7 +1,6 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
 <<<<<<< HEAD
-  PLATFORM_VERSION: 'v3.2.5',
   RELEASE_NAME: 'Morning Brief Operational Delivery & Version Authority Correction',
 =======
   PLATFORM_VERSION: 'v3.2.8',
