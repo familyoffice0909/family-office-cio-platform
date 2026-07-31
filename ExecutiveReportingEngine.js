@@ -66,13 +66,17 @@ function foRunExecutiveReportEngine() {
     }
 
     const reportId = foNowId_('EXEC-RPT');
-    const summary = foBuildExecutiveSummary_(decisions);
 
     const valuationSummary = foReadMetricSheet_(
       dashboard,
       'Portfolio Valuation Summary',
       'Metric',
       'Value'
+    );
+
+    const summary = foBuildExecutiveSummary_(
+      decisions,
+      valuationSummary
     );
 
     const output = foEnsureSheet_(dashboard, 'Executive CIO Report', [
@@ -119,7 +123,7 @@ function foRunExecutiveReportEngine() {
       summary.totalMarketValue,
       '',
       '',
-      'Based on Portfolio Performance Positions market value data.',
+      'Governed Portfolio Valuation Summary — valued positions only.',
       reportId,
       FO_CONFIG.PLATFORM_VERSION,
       FO_CONFIG.BASELINE,
@@ -374,10 +378,35 @@ function foExecutiveMarketValue_(marketValues, ticker, account) {
   return marketValues.ticker[String(ticker || '').trim().toUpperCase()] || 0;
 }
 
-function foBuildExecutiveSummary_(decisions) {
-  const totalMarketValue = decisions.reduce(function(sum, d) {
-    return sum + (Number(d.marketValue) || 0);
-  }, 0);
+function foBuildExecutiveSummary_(decisions, valuationSummary) {
+  const metrics = valuationSummary || {};
+  const hasGovernedMarketValue =
+    Object.prototype.hasOwnProperty.call(
+      metrics,
+      'Valued-Position Market Value'
+    ) ||
+    Object.prototype.hasOwnProperty.call(
+      metrics,
+      'Total Market Value'
+    );
+
+  if (!hasGovernedMarketValue) {
+    throw new Error(
+      'Portfolio Valuation Summary does not contain a governed market-value metric.'
+    );
+  }
+
+  const totalMarketValue = Number(
+    metrics['Valued-Position Market Value'] !== undefined
+      ? metrics['Valued-Position Market Value']
+      : metrics['Total Market Value']
+  );
+
+  if (!Number.isFinite(totalMarketValue)) {
+    throw new Error(
+      'Governed portfolio market value is not numeric.'
+    );
+  }
 
   const readinessValues = decisions
     .map(function(d) { return Number(d.cioReadiness || 0); })

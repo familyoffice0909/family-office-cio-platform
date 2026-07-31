@@ -192,14 +192,29 @@ function foReadMarketIntelligenceRows_(spreadsheet) {
 }
 
 function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, executiveReportSummary, cioDecisions, marketIntel) {
-  const totalMarketValue = Number(portfolioSummary['Total Market Value'] || 0);
-  const totalPositions = Number(portfolioSummary['Total Positions'] || cioDecisions.length || 0);
-
-  const valuationTotalMarketValue = Number(
-    valuationSummary['Total Market Value'] ||
-    valuationSummary['Total Gross Portfolio Market Value'] ||
+  const totalPositions = Number(
+    portfolioSummary['Total Positions'] ||
+    cioDecisions.length ||
     0
   );
+
+  const hasGovernedMarketValue =
+    Object.prototype.hasOwnProperty.call(
+      valuationSummary,
+      'Valued-Position Market Value'
+    ) ||
+    Object.prototype.hasOwnProperty.call(
+      valuationSummary,
+      'Total Market Value'
+    );
+
+  const valuationTotalMarketValue = hasGovernedMarketValue
+    ? Number(
+      valuationSummary['Valued-Position Market Value'] !== undefined
+        ? valuationSummary['Valued-Position Market Value']
+        : valuationSummary['Total Market Value']
+    )
+    : 'NOT AVAILABLE';
 
   const totalCostBasis = Number(
     valuationSummary['Total Cost Basis'] ||
@@ -207,17 +222,25 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
     0
   );
 
-  const unrealizedGainLoss = Number(
-    valuationSummary['Unrealized Gain/Loss'] ||
-    valuationSummary['Unrealized Variance'] ||
-    0
-  );
+  const fullReturnEligible = String(
+    valuationSummary['Full Portfolio Return Eligible'] || 'NO'
+  ).trim().toUpperCase() === 'YES';
 
-  const unrealizedGainLossPct = Number(
-    valuationSummary['Unrealized Gain/Loss %'] ||
-    valuationSummary['Unrealized Variance %'] ||
-    0
-  );
+  const unrealizedGainLoss = fullReturnEligible
+    ? Number(
+      valuationSummary['Unrealized Gain/Loss'] ||
+      valuationSummary['Unrealized Variance'] ||
+      0
+    )
+    : 'SUPPRESSED';
+
+  const unrealizedGainLossPct = fullReturnEligible
+    ? Number(
+      valuationSummary['Unrealized Gain/Loss %'] ||
+      valuationSummary['Unrealized Variance %'] ||
+      0
+    )
+    : 'SUPPRESSED';
 
   const priceCoverage = Number(
     valuationSummary['Price Coverage %'] ||
@@ -278,7 +301,6 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
   );
 
   const readinessMetric = executiveReportSummary['Overall CIO Readiness'] || {};
-  const totalMarketValueMetric = executiveReportSummary['Total Market Value'] || {};
   const reviewMetric = executiveReportSummary['Actions Requiring Review'] || {};
 
   const avgReadiness =
@@ -325,11 +347,11 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
   rows.push(['1. Executive Summary', '', '', '']);
   rows.push([
     'Total Portfolio Value',
-    valuationTotalMarketValue || totalMarketValueMetric.value || totalMarketValue,
+    valuationTotalMarketValue,
     certificationStatus.toUpperCase() === 'CERTIFIED' ? '🟢' : '🟡',
-    valuationTotalMarketValue
-      ? 'Governed Portfolio Valuation Summary.'
-      : 'Portfolio Engine fallback.'
+    hasGovernedMarketValue
+      ? 'Governed Portfolio Valuation Summary — valued positions only.'
+      : 'Governed valuation evidence is unavailable.'
   ]);
   rows.push(['Total Positions', totalPositions, '🟢', 'Active holdings included in Portfolio Snapshot.']);
   rows.push(['Overall CIO Readiness', avgReadiness, foReadinessStatus_(avgReadiness), readinessMetric.notes || 'Average readiness across CIO decisions.']);
@@ -355,22 +377,26 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
 
   rows.push(['Total Cost Basis',
     totalCostBasis,
-    costBasisCoverage>=100?'🟢':'🟡',
+    costBasisCoverage >= 1 ? '🟢' : '🟡',
     'Documented cost basis.']);
 
   rows.push(['Unrealized Gain / Loss',
     unrealizedGainLoss,
-    '',
-    'Market value minus cost basis.']);
+    fullReturnEligible ? '' : '🟡',
+    fullReturnEligible
+      ? 'Complete-portfolio market value minus cost basis.'
+      : 'SUPPRESSED because full-portfolio return is not eligible.']);
 
   rows.push(['Unrealized Gain / Loss %',
     unrealizedGainLossPct,
-    '',
-    'Percentage variance versus cost basis.']);
+    fullReturnEligible ? '' : '🟡',
+    fullReturnEligible
+      ? 'Complete-portfolio percentage variance versus cost basis.'
+      : 'SUPPRESSED because full-portfolio return is not eligible.']);
 
   rows.push(['Price Coverage %',
     priceCoverage,
-    priceCoverage>=100?'🟢':'🟡',
+    priceCoverage >= 1 ? '🟢' : '🟡',
     'Coverage across active positions.']);
 
   rows.push(['Valued Positions',
@@ -385,7 +411,7 @@ function foBuildExecutiveDashboardRows_(portfolioSummary, valuationSummary, exec
 
   rows.push(['Cost Basis Coverage %',
     costBasisCoverage,
-    costBasisCoverage>=100?'🟢':'🟡',
+    costBasisCoverage >= 1 ? '🟢' : '🟡',
     'Coverage across active positions.']);
 
   rows.push(['Missing Cost Basis Count',
