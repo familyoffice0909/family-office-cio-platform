@@ -1,6 +1,6 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.2.7',
+  PLATFORM_VERSION: 'v3.2.8',
   RELEASE_NAME: 'Morning Brief Certification and Valuation Evidence Integrity',
 
   BASELINE: 'CB-002',
