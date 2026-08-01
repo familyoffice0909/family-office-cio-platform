@@ -46,10 +46,14 @@ function createMorningBriefPreflightRuntime(options = {}) {
     'Executive Dashboard',
     'Portfolio Master',
     'Portfolio Snapshot',
+    'Portfolio Performance Positions',
+    'Portfolio Valuation Summary',
+    'Portfolio Optimization Summary',
     'Portfolio Scenario Summary',
     'Risk Budget Summary',
     'Investment Decision Support',
     'Executive Decision State A233',
+    'Executive CIO Report',
     'Automation Log',
     'Executive Report Archive',
     'Knowledge Base'
@@ -60,10 +64,14 @@ function createMorningBriefPreflightRuntime(options = {}) {
     'Canadian Market Access Library',
     'Outcomes',
     'Lessons Learned',
-    'Orchestration Log'
+    'Orchestration Log',
+    'Report Archive'
   ]);
 
   const dashboard = options.dashboard === null ? null : {
+    getName: jest.fn(function() {
+      return 'Family Office Portfolio Dashboard';
+    }),
     getSheetByName: jest.fn(function(sheetName) {
       return dashboardSheets.has(sheetName)
         ? { getName: function() { return sheetName; } }
@@ -72,6 +80,9 @@ function createMorningBriefPreflightRuntime(options = {}) {
   };
 
   const ledger = options.ledger === null ? null : {
+    getName: jest.fn(function() {
+      return 'Family Office Investment Ledger';
+    }),
     getSheetByName: jest.fn(function(sheetName) {
       return ledgerSheets.has(sheetName)
         ? { getName: function() { return sheetName; } }
@@ -175,8 +186,8 @@ describe('Morning Brief preflight', () => {
     expect(result.dataAccessStatus).toBe('LIVE');
     expect(result.dashboard).toBe(runtime.dashboard);
     expect(result.ledger).toBe(runtime.ledger);
-    expect(result.dashboardValidation.requiredSheetCount).toBe(10);
-    expect(result.ledgerValidation.requiredSheetCount).toBe(5);
+    expect(result.dashboardValidation.requiredSheetCount).toBe(14);
+    expect(result.ledgerValidation.requiredSheetCount).toBe(6);
   });
 
   test('fails when a required Dashboard sheet is missing', () => {
@@ -185,11 +196,16 @@ describe('Morning Brief preflight', () => {
         'Executive Dashboard',
         'Portfolio Master',
         'Portfolio Snapshot',
+        'Portfolio Performance Positions',
+        'Portfolio Valuation Summary',
+        'Portfolio Optimization Summary',
         'Portfolio Scenario Summary',
         'Risk Budget Summary',
         'Investment Decision Support',
         'Executive Decision State A233',
-        'Automation Log'
+        'Executive CIO Report',
+        'Automation Log',
+        'Knowledge Base'
       ]
     });
 
@@ -203,11 +219,28 @@ describe('Morning Brief preflight', () => {
 
   test('fails when a required Ledger sheet is missing', () => {
     const runtime = createMorningBriefPreflightRuntime({
+      dashboardSheets: [
+        'Executive Dashboard',
+        'Portfolio Master',
+        'Portfolio Snapshot',
+        'Portfolio Performance Positions',
+        'Portfolio Valuation Summary',
+        'Portfolio Optimization Summary',
+        'Portfolio Scenario Summary',
+        'Risk Budget Summary',
+        'Investment Decision Support',
+        'Executive Decision State A233',
+        'Executive CIO Report',
+        'Automation Log',
+        'Executive Report Archive',
+        'Knowledge Base'
+      ],
       ledgerSheets: [
         'Version History',
         'Canadian Market Access Library',
         'Outcomes',
-        'Lessons Learned'
+        'Lessons Learned',
+        'Report Archive'
       ]
     });
 

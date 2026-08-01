@@ -10,10 +10,14 @@ const FO_MORNING_BRIEF_REQUIRED_DASHBOARD_SHEETS = [
   'Executive Dashboard',
   'Portfolio Master',
   'Portfolio Snapshot',
+  'Portfolio Performance Positions',
+  'Portfolio Valuation Summary',
+  'Portfolio Optimization Summary',
   'Portfolio Scenario Summary',
   'Risk Budget Summary',
   'Investment Decision Support',
   'Executive Decision State A233',
+  'Executive CIO Report',
   'Automation Log',
   'Executive Report Archive',
   'Knowledge Base'
@@ -24,7 +28,8 @@ const FO_MORNING_BRIEF_REQUIRED_LEDGER_SHEETS = [
   'Canadian Market Access Library',
   'Outcomes',
   'Lessons Learned',
-  'Orchestration Log'
+  'Orchestration Log',
+  'Report Archive'
 ];
 
 function foRunExecutiveReportEngine() {
@@ -219,9 +224,45 @@ function foValidateRequiredSheets_(spreadsheet, requiredSheets, workbookName) {
   };
 }
 
+function foValidateWorkbookTitle_(spreadsheet, expectedTitle) {
+  if (!spreadsheet) {
+    throw new Error(expectedTitle + ' workbook is unavailable.');
+  }
+
+  const actualTitle = String(spreadsheet.getName() || '').trim();
+
+  if (actualTitle !== expectedTitle) {
+    throw new Error(
+      'Workbook title mismatch. Expected "' +
+      expectedTitle +
+      '" but found "' +
+      actualTitle +
+      '".'
+    );
+  }
+
+  return {
+    status: 'SUCCESS',
+    expectedTitle: expectedTitle,
+    actualTitle: actualTitle,
+    verified: true
+  };
+}
+
+
 function foRunMorningBriefPreflight_() {
   const dashboard = foDashboard_();
   const ledger = foLedger_();
+
+  const dashboardTitleValidation = foValidateWorkbookTitle_(
+    dashboard,
+    'Family Office Portfolio Dashboard'
+  );
+
+  const ledgerTitleValidation = foValidateWorkbookTitle_(
+    ledger,
+    'Family Office Investment Ledger'
+  );
 
   const dashboardValidation = foValidateRequiredSheets_(
     dashboard,
@@ -238,8 +279,15 @@ function foRunMorningBriefPreflight_() {
   return {
     status: 'SUCCESS',
     dataAccessStatus: 'LIVE',
+    workbookAccessStatus: 'LIVE',
+    workbookTitleStatus: 'VERIFIED',
+    requiredSheetsStatus: 'VERIFIED',
+    governedEvidenceStatus: 'AVAILABLE',
+    persistenceDependenciesStatus: 'VERIFIED',
     dashboard: dashboard,
     ledger: ledger,
+    dashboardTitleValidation: dashboardTitleValidation,
+    ledgerTitleValidation: ledgerTitleValidation,
     dashboardValidation: dashboardValidation,
     ledgerValidation: ledgerValidation,
     checkedAt: new Date()
