@@ -563,49 +563,49 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
   const priceBasis = String(metrics['Price Basis'] || 'NOT AVAILABLE');
   const reconciliationPassed = reconciliationStatus.toUpperCase() === 'RECONCILED' || reconciliationStatus.toUpperCase() === 'PASS';
 
-  function add(metric, value, priority, risk, notes) {
+  function addValuationMetric_(metric, value, priority, risk, notes) {
     rows.push(['Portfolio Valuation Evidence', metric, value, priority || '', risk || '', notes || '', reportId, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE, new Date()]);
   }
 
-  add('Certification Status', certificationStatus,
+  addValuationMetric_('Certification Status', certificationStatus,
     certificationStatus.toUpperCase() === 'CERTIFIED' ? 'NORMAL' : 'CRITICAL',
     certificationStatus.toUpperCase() === 'CERTIFIED' ? 'LOW' : 'HIGH',
     'Certification requires complete valuation evidence and successful reconciliation.');
-  add('Valuation Completeness', completeness,
+  addValuationMetric_('Valuation Completeness', completeness,
     completeness === 'COMPLETE' ? 'NORMAL' : 'CRITICAL',
     completeness === 'COMPLETE' ? 'LOW' : 'HIGH',
     'Completeness is separate from reconciliation.');
-  add('Reconciliation Status', reconciliationStatus,
+  addValuationMetric_('Reconciliation Status', reconciliationStatus,
     reconciliationPassed ? 'NORMAL' : 'CRITICAL',
     reconciliationPassed && Math.abs(reconciliationVariance) <= 0.01 ? 'LOW' : 'HIGH',
     'Reconciliation variance: C$' + reconciliationVariance + '; governed tolerance is within C$0.01.');
-  add('Valued-Position Market Value', valuedMarketValue, '', '',
+  addValuationMetric_('Valued-Position Market Value', valuedMarketValue, '', '',
     'Market value for positions with supported current or persisted-fallback valuation evidence.');
-  add('Total Cost Basis', totalCostBasis,
+  addValuationMetric_('Total Cost Basis', totalCostBasis,
     costBasisCoverage >= 1 ? 'NORMAL' : 'HIGH',
     costBasisCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Documented cost basis across all active positions.');
-  add('Comparable Cost Basis', comparableCostBasis, '', '',
+  addValuationMetric_('Comparable Cost Basis', comparableCostBasis, '', '',
     'Cost basis only for positions included in valued-position market value.');
-  add('Full Portfolio Unrealized Gain / Loss', fullGainLoss,
+  addValuationMetric_('Full Portfolio Unrealized Gain / Loss', fullGainLoss,
     fullReturnEligible ? '' : 'CRITICAL',
     fullReturnEligible ? '' : 'HIGH',
     fullReturnEligible ? 'Complete-portfolio variance.' : 'SUPPRESSED because price coverage is incomplete.');
-  add('Full Portfolio Unrealized Gain / Loss %', fullGainLossPct,
+  addValuationMetric_('Full Portfolio Unrealized Gain / Loss %', fullGainLossPct,
     fullReturnEligible ? '' : 'CRITICAL',
     fullReturnEligible ? '' : 'HIGH',
     fullReturnEligible ? 'Complete-portfolio return.' : 'SUPPRESSED because price coverage is incomplete.');
-  add('Comparable Unrealized Gain / Loss', comparableGainLoss, '', '',
+  addValuationMetric_('Comparable Unrealized Gain / Loss', comparableGainLoss, '', '',
     'Like-for-like variance for valued positions only.');
-  add('Comparable Unrealized Gain / Loss %', comparableGainLossPct, '', '',
+  addValuationMetric_('Comparable Unrealized Gain / Loss %', comparableGainLossPct, '', '',
     'Like-for-like return for valued positions only.');
-  add('Price Coverage %', priceCoverage,
+  addValuationMetric_('Price Coverage %', priceCoverage,
     priceCoverage >= 1 ? 'NORMAL' : 'HIGH',
     priceCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Coverage ratio across active positions.');
 
 
-  add(
+  addValuationMetric_(
     'Valued Positions',
     Number(metrics['Valued Positions'] || 0),
     '',
@@ -613,7 +613,7 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     'Positions successfully valued using governed valuation evidence.'
   );
 
-  add(
+  addValuationMetric_(
     'Total Active Positions',
     Number(metrics['Total Active Positions'] || 0),
     '',
@@ -621,30 +621,30 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     'Total active portfolio positions considered during valuation.'
   );
 
-  add(
+  addValuationMetric_(
     'Missing Cost Basis Count',
     Number(metrics['Missing Cost Basis Count'] || 0),
     Number(metrics['Missing Cost Basis Count'] || 0) === 0 ? 'NORMAL' : 'HIGH',
     Number(metrics['Missing Cost Basis Count'] || 0) === 0 ? 'LOW' : 'MEDIUM',
     'Positions without documented cost basis.'
   );
-  add('Cost Basis Coverage %', costBasisCoverage,
+  addValuationMetric_('Cost Basis Coverage %', costBasisCoverage,
     costBasisCoverage >= 1 ? 'NORMAL' : 'HIGH',
     costBasisCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Coverage ratio across active positions.');
-  add('Missing Price Count', missingPriceCount,
+  addValuationMetric_('Missing Price Count', missingPriceCount,
     missingPriceCount === 0 ? 'NORMAL' : 'CRITICAL',
     missingPriceCount === 0 ? 'LOW' : 'HIGH',
     'Missing-price tickers: ' + missingPriceTickers + '.');
-  add('Valuation Timestamp', valuationTimestamp,
+  addValuationMetric_('Valuation Timestamp', valuationTimestamp,
     valuationTimestamp === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
     valuationTimestamp === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
     'Portfolio valuation execution timestamp.');
-  add('Latest Price Timestamp', latestPriceTimestamp,
+  addValuationMetric_('Latest Price Timestamp', latestPriceTimestamp,
     latestPriceTimestamp === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
     latestPriceTimestamp === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
     'Most recent supported price timestamp used in valuation.');
-  add('Price Basis', priceBasis,
+  addValuationMetric_('Price Basis', priceBasis,
     priceBasis === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
     priceBasis === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
     'Portfolio-level basis: LIVE, DELAYED, PRIOR_CLOSE, PERSISTED_FALLBACK, ESTIMATED, or MIXED.');
@@ -652,11 +652,11 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
   ['TFSA', 'LIRA', 'IBKR'].forEach(function(account) {
     const key = account + ' Market Value';
     if (Object.prototype.hasOwnProperty.call(metrics, key)) {
-      add(key, Number(metrics[key] || 0), '', '', 'Account-level governed valuation evidence.');
+      addValuationMetric_(key, Number(metrics[key] || 0), '', '', 'Account-level governed valuation evidence.');
     }
   });
   if (Object.prototype.hasOwnProperty.call(metrics, 'IBKR Cash Included')) {
-    add('IBKR Cash Included', String(metrics['IBKR Cash Included']), '', '',
+    addValuationMetric_('IBKR Cash Included', String(metrics['IBKR Cash Included']), '', '',
       'YES only when a recognized cash ticker is included in valuation evidence.');
   }
 }
@@ -700,7 +700,7 @@ function foAppendPortfolioOptimizationExecutiveRows_(
     }
   });
 
-  function add(metric, value, notes) {
+  function addOptimizationMetric_(metric, value, notes) {
     rows.push([
       'Portfolio Optimization Intelligence',
       metric,
@@ -715,43 +715,43 @@ function foAppendPortfolioOptimizationExecutiveRows_(
     ]);
   }
 
-  add(
+  addOptimizationMetric_(
     'Portfolio Directive',
     metrics['Portfolio Directive'] || 'NOT AVAILABLE',
     'Governed deterministic weight-based optimization directive.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Candidates Reviewed',
     Number(metrics['Candidate Count'] || 0),
     'Candidates assessed by Portfolio Optimization Intelligence.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Eligible Candidates',
     Number(metrics['Eligible Candidate Count'] || 0),
     'Candidates eligible after governed upstream controls.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Funded Candidates',
     Number(metrics['Funded Candidate Count'] || 0),
     'Candidates receiving positive optimized incremental weight.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Constrained Candidates',
     Number(metrics['Constrained Candidate Count'] || 0),
     'Candidates capped or blocked by governed allocation constraints.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Optimized Incremental Weight',
     Number(metrics['Optimized Incremental Weight'] || 0),
     'Aggregate optimized incremental portfolio weight.'
   );
 
-  add(
+  addOptimizationMetric_(
     'Largest Optimized Target Weight',
     Number(metrics['Largest Optimized Target Weight'] || 0),
     'Largest position weight produced by the governed optimization result.'
@@ -795,7 +795,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
 
   const detail = foReadPreferredScenarioExplainability_(dashboard);
 
-  function add(metric, value, priority, risk, notes) {
+  function addScenarioMetric_(metric, value, priority, risk, notes) {
     rows.push([
       'Portfolio Scenario Intelligence',
       metric,
@@ -810,7 +810,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     ]);
   }
 
-  add(
+  addScenarioMetric_(
     'Preferred Scenario',
     scenario.preferredScenario,
     scenario.scenarioScore >= 75 ? 'HIGH' : 'NORMAL',
@@ -818,7 +818,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     scenario.rationale
   );
 
-  add(
+  addScenarioMetric_(
     'Scenario Score',
     scenario.scenarioScore,
     '',
@@ -826,7 +826,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     'Deterministic comparison score; not a return forecast.'
   );
 
-  add(
+  addScenarioMetric_(
     'Proposed Incremental Weight',
     Number(scenario.totalIncrementalWeight || 0),
     '',
@@ -834,7 +834,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     'Preferred-scenario proposed incremental portfolio weight.'
   );
 
-  add(
+  addScenarioMetric_(
     'Funded Candidates',
     Number(scenario.fundedCandidateCount || 0),
     '',
@@ -842,7 +842,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     'Candidates receiving positive proposed incremental weight.'
   );
 
-  add(
+  addScenarioMetric_(
     'Largest Projected Position',
     Number(scenario.largestTargetWeight || 0),
     '',
@@ -857,7 +857,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     Number(detail.constraintComplianceScore || 100) < 100;
 
   if (showExplainability) {
-    add(
+    addScenarioMetric_(
       'Deployment Alignment Score',
       detail.deploymentAlignmentScore,
       '',
@@ -865,7 +865,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
       'Alignment with governed optimized deployment potential.'
     );
 
-    add(
+    addScenarioMetric_(
       'Diversification Score',
       detail.diversificationScore,
       '',
@@ -873,7 +873,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
       'Concentration-aware diversification assessment.'
     );
 
-    add(
+    addScenarioMetric_(
       'Risk Discipline Score',
       detail.riskDisciplineScore,
       '',
@@ -881,7 +881,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
       'Risk discipline under the preferred scenario.'
     );
 
-    add(
+    addScenarioMetric_(
       'Stress Discipline Score',
       detail.stressDisciplineScore,
       '',
@@ -889,7 +889,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
       'Stress discipline under enabled stress scenarios.'
     );
 
-    add(
+    addScenarioMetric_(
       'Constraint Compliance Score',
       detail.constraintComplianceScore,
       Number(detail.constraintBreachCount || 0) > 0
@@ -899,7 +899,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
       'Compliance with governed scenario constraints.'
     );
 
-    add(
+    addScenarioMetric_(
       'Scenario Constraint Breaches',
       detail.constraintBreachCount,
       Number(detail.constraintBreachCount || 0) > 0
@@ -910,7 +910,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
     );
   }
 
-  add(
+  addScenarioMetric_(
     'Scenario Recommendation',
     scenario.executiveRecommendation,
     scenario.portfolioRiskLevel === 'CRITICAL'
@@ -1025,7 +1025,7 @@ function foAppendRiskBudgetExecutiveRows_(
     return metrics[name] || {};
   }
 
-  function add(name, displayName, priority, notes) {
+  function addRiskBudgetMetric_(name, displayName, priority, notes) {
     const item = metric(name);
 
     rows.push([
@@ -1052,25 +1052,25 @@ function foAppendRiskBudgetExecutiveRows_(
     metric('Overall Constraint Status').value || 'NOT AVAILABLE'
   ).toUpperCase();
 
-  add(
+  addRiskBudgetMetric_(
     'Overall Risk Budget Status',
     'Risk Budget Status',
     overallStatus === 'BREACH' ? 'CRITICAL' : 'NORMAL'
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Portfolio Risk Budget Utilization',
     'Portfolio Budget Utilization',
     ''
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Remaining Risk Capacity',
     'Remaining Risk Capacity',
     ''
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Risk Budget Breach Count',
     'Capacity Breaches',
     Number(metric('Risk Budget Breach Count').value || 0) > 0
@@ -1078,7 +1078,7 @@ function foAppendRiskBudgetExecutiveRows_(
       : 'NORMAL'
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Constrained Allocation Count',
     'Constrained Allocations',
     Number(metric('Constrained Allocation Count').value || 0) > 0
@@ -1086,7 +1086,7 @@ function foAppendRiskBudgetExecutiveRows_(
       : 'NORMAL'
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Overall Constraint Status',
     'Overall Constraint Status',
     overallConstraintStatus === 'BLOCKED'
@@ -1094,7 +1094,7 @@ function foAppendRiskBudgetExecutiveRows_(
       : 'NORMAL'
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Primary Blocker',
     'Primary Blocker',
     String(metric('Primary Blocker').value || 'NONE').toUpperCase() ===
@@ -1103,7 +1103,7 @@ function foAppendRiskBudgetExecutiveRows_(
       : 'HIGH'
   );
 
-  add(
+  addRiskBudgetMetric_(
     'Blocked Position Count',
     'Blocked Positions',
     Number(metric('Blocked Position Count').value || 0) > 0
@@ -1115,38 +1115,38 @@ function foAppendRiskBudgetExecutiveRows_(
     overallStatus === 'BREACH' ||
     overallConstraintStatus === 'BLOCKED'
   ) {
-    add(
+    addRiskBudgetMetric_(
       'Recommendation Control Blocks',
       'Recommendation-Control Blocks',
       ''
     );
 
-    add(
+    addRiskBudgetMetric_(
       'Confidence Blocks',
       'Confidence Blocks',
       ''
     );
 
-    add(
+    addRiskBudgetMetric_(
       'Allocation Eligibility Blocks',
       'Allocation-Eligibility Blocks',
       ''
     );
 
-    add(
+    addRiskBudgetMetric_(
       'Market Data Blocks',
       'Market-Data Blocks',
       ''
     );
 
-    add(
+    addRiskBudgetMetric_(
       'Other Upstream Blocks',
       'Other Upstream Blocks',
       ''
     );
   }
 
-  add(
+  addRiskBudgetMetric_(
     'Executive Risk Budget Directive',
     'Executive Directive',
     overallStatus === 'BREACH' ? 'CRITICAL' : ''
