@@ -4,7 +4,7 @@ const FO_CONFIG = {
   RELEASE_NAME: 'Morning Brief Certification and Valuation Evidence Integrity',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.30.v327-dev',
+  BUILD: '2026.07.31.v328-dev',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
