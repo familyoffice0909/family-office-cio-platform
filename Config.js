@@ -4,13 +4,13 @@ const FO_CONFIG = {
   RELEASE_NAME: 'Morning Brief Certification and Valuation Evidence Integrity',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.30.v327-dev',
+  BUILD: '2026.07.31.v328-dev',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.2.7',
+  ENGINE_VERSION: 'v3.2.8',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
