@@ -163,6 +163,12 @@ function foRunExecutiveReportEngine() {
       new Date()
     ]);
 
+    foAppendMaterialActionExplainability_(
+      rows,
+      integrationA233,
+      reportId
+    );
+
     foAppendDecisionSectionA233_(rows, 'Deploy Capital', decisions, ['DEPLOY NOW'], reportId, integrationA233);
     foAppendDecisionSectionA233_(rows, 'Buy / Add', decisions, ['BUY'], reportId, integrationA233);
     foAppendDecisionSectionA233_(rows, 'Accumulate', decisions, ['ACCUMULATE'], reportId, integrationA233);
@@ -655,59 +661,101 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
   }
 }
 
-function foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId) {
+function foAppendPortfolioOptimizationExecutiveRows_(
+  dashboard,
+  rows,
+  reportId
+) {
   const sheet = dashboard.getSheetByName(
     FO_SHEETS.PORTFOLIO_OPTIMIZATION_SUMMARY
   );
-  if (!sheet || sheet.getLastRow() < 2) return;
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    rows.push([
+      'Portfolio Optimization Intelligence',
+      'Optimization Status',
+      'NOT AVAILABLE',
+      'REVIEW',
+      'UNKNOWN',
+      'Run Portfolio Optimization Intelligence before executive reporting.',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+    return;
+  }
 
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(String);
   const metrics = {};
+
   values.slice(1).forEach(function(row) {
-    const metric = String(foGetVal_(row, headers, 'Metric') || '').trim();
-    if (metric) metrics[metric] = foGetVal_(row, headers, 'Value');
+    const metric = String(
+      foGetVal_(row, headers, 'Metric') || ''
+    ).trim();
+
+    if (metric) {
+      metrics[metric] = foGetVal_(row, headers, 'Value');
+    }
   });
 
-  rows.push([
-    'Portfolio Optimization Summary',
+  function add(metric, value, notes) {
+    rows.push([
+      'Portfolio Optimization Intelligence',
+      metric,
+      value,
+      '',
+      '',
+      notes || '',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+  }
+
+  add(
     'Portfolio Directive',
     metrics['Portfolio Directive'] || 'NOT AVAILABLE',
-    '',
-    '',
-    'Weight-based optimization; no cash or trade execution assumed.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    'Governed deterministic weight-based optimization directive.'
+  );
 
-  rows.push([
-    'Portfolio Optimization Summary',
-    'Funded / Eligible Candidates',
-    String(metrics['Funded Candidate Count'] || 0) + ' / ' +
-      String(metrics['Eligible Candidate Count'] || 0),
-    '',
-    '',
-    'Candidates receiving a positive incremental target weight.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+  add(
+    'Candidates Reviewed',
+    Number(metrics['Candidate Count'] || 0),
+    'Candidates assessed by Portfolio Optimization Intelligence.'
+  );
 
-  rows.push([
-    'Portfolio Optimization Summary',
+  add(
+    'Eligible Candidates',
+    Number(metrics['Eligible Candidate Count'] || 0),
+    'Candidates eligible after governed upstream controls.'
+  );
+
+  add(
+    'Funded Candidates',
+    Number(metrics['Funded Candidate Count'] || 0),
+    'Candidates receiving positive optimized incremental weight.'
+  );
+
+  add(
+    'Constrained Candidates',
+    Number(metrics['Constrained Candidate Count'] || 0),
+    'Candidates capped or blocked by governed allocation constraints.'
+  );
+
+  add(
     'Optimized Incremental Weight',
-    metrics['Optimized Incremental Weight'] || 0,
-    '',
-    '',
-    'Aggregate recommended incremental portfolio weight across eligible candidates.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    Number(metrics['Optimized Incremental Weight'] || 0),
+    'Aggregate optimized incremental portfolio weight.'
+  );
+
+  add(
+    'Largest Optimized Target Weight',
+    Number(metrics['Largest Optimized Target Weight'] || 0),
+    'Largest position weight produced by the governed optimization result.'
+  );
 }
 
 function foAppendPortfolioScenarioExecutiveRows_(
@@ -745,70 +793,200 @@ function foAppendPortfolioScenarioExecutiveRows_(
     return;
   }
 
-  rows.push([
-    'Portfolio Scenario Intelligence',
+  const detail = foReadPreferredScenarioExplainability_(dashboard);
+
+  function add(metric, value, priority, risk, notes) {
+    rows.push([
+      'Portfolio Scenario Intelligence',
+      metric,
+      value,
+      priority || '',
+      risk || '',
+      notes || '',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+  }
+
+  add(
     'Preferred Scenario',
     scenario.preferredScenario,
     scenario.scenarioScore >= 75 ? 'HIGH' : 'NORMAL',
     scenario.portfolioRiskLevel,
-    scenario.rationale,
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    scenario.rationale
+  );
 
-  rows.push([
-    'Portfolio Scenario Intelligence',
+  add(
     'Scenario Score',
     scenario.scenarioScore,
     '',
     scenario.stressContext,
-    'Deterministic comparison score; not a return forecast.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    'Deterministic comparison score; not a return forecast.'
+  );
 
-  rows.push([
-    'Portfolio Scenario Intelligence',
-    'Deployment / Funded Candidates',
-    String(
-      Math.round(
-        (Number(scenario.totalIncrementalWeight) || 0) *
-        10000
-      ) / 100
-    ) + '% / ' +
-      String(scenario.fundedCandidateCount || 0),
+  add(
+    'Proposed Incremental Weight',
+    Number(scenario.totalIncrementalWeight || 0),
     '',
     '',
-    'Proposed incremental portfolio weight and funded candidate count.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    'Preferred-scenario proposed incremental portfolio weight.'
+  );
 
-  rows.push([
-    'Portfolio Scenario Intelligence',
+  add(
+    'Funded Candidates',
+    Number(scenario.fundedCandidateCount || 0),
+    '',
+    '',
+    'Candidates receiving positive proposed incremental weight.'
+  );
+
+  add(
+    'Largest Projected Position',
+    Number(scenario.largestTargetWeight || 0),
+    '',
+    '',
+    'Largest target weight under the preferred scenario.'
+  );
+
+  const showExplainability =
+    String(scenario.portfolioRiskLevel || '').toUpperCase() ===
+      'CRITICAL' ||
+    Number(detail.constraintBreachCount || 0) > 0 ||
+    Number(detail.constraintComplianceScore || 100) < 100;
+
+  if (showExplainability) {
+    add(
+      'Deployment Alignment Score',
+      detail.deploymentAlignmentScore,
+      '',
+      '',
+      'Alignment with governed optimized deployment potential.'
+    );
+
+    add(
+      'Diversification Score',
+      detail.diversificationScore,
+      '',
+      '',
+      'Concentration-aware diversification assessment.'
+    );
+
+    add(
+      'Risk Discipline Score',
+      detail.riskDisciplineScore,
+      '',
+      '',
+      'Risk discipline under the preferred scenario.'
+    );
+
+    add(
+      'Stress Discipline Score',
+      detail.stressDisciplineScore,
+      '',
+      '',
+      'Stress discipline under enabled stress scenarios.'
+    );
+
+    add(
+      'Constraint Compliance Score',
+      detail.constraintComplianceScore,
+      Number(detail.constraintBreachCount || 0) > 0
+        ? 'CRITICAL'
+        : 'NORMAL',
+      '',
+      'Compliance with governed scenario constraints.'
+    );
+
+    add(
+      'Scenario Constraint Breaches',
+      detail.constraintBreachCount,
+      Number(detail.constraintBreachCount || 0) > 0
+        ? 'CRITICAL'
+        : 'NORMAL',
+      '',
+      'Preferred-scenario constraint breach count.'
+    );
+  }
+
+  add(
     'Scenario Recommendation',
     scenario.executiveRecommendation,
     scenario.portfolioRiskLevel === 'CRITICAL'
       ? 'CRITICAL'
       : 'NORMAL',
     scenario.portfolioRiskLevel,
-    'Preferred scenario is advisory and remains subject to all execution controls.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    'Advisory scenario output; all execution controls remain authoritative.'
+  );
 }
 
+function foReadPreferredScenarioExplainability_(dashboard) {
+  const sheet = dashboard.getSheetByName(
+    FO_SHEETS.PORTFOLIO_SCENARIO_SUMMARY
+  );
 
-function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
-  const sheet = dashboard.getSheetByName(FO_SHEETS.RISK_BUDGET_SUMMARY);
+  const unavailable = {
+    deploymentAlignmentScore: 0,
+    diversificationScore: 0,
+    riskDisciplineScore: 0,
+    stressDisciplineScore: 0,
+    constraintComplianceScore: 0,
+    constraintBreachCount: 0
+  };
+
+  if (!sheet || sheet.getLastRow() < 2) return unavailable;
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+
+  const preferred = values.slice(1).filter(function(row) {
+    return String(
+      foGetVal_(row, headers, 'Preferred') || ''
+    ).trim().toUpperCase() === 'YES';
+  })[0];
+
+  if (!preferred) return unavailable;
+
+  return {
+    deploymentAlignmentScore: Number(
+      foGetVal_(
+        preferred,
+        headers,
+        'Deployment Alignment Score'
+      ) || 0
+    ),
+    diversificationScore: Number(
+      foGetVal_(preferred, headers, 'Diversification Score') || 0
+    ),
+    riskDisciplineScore: Number(
+      foGetVal_(preferred, headers, 'Risk Discipline Score') || 0
+    ),
+    stressDisciplineScore: Number(
+      foGetVal_(preferred, headers, 'Stress Discipline Score') || 0
+    ),
+    constraintComplianceScore: Number(
+      foGetVal_(
+        preferred,
+        headers,
+        'Constraint Compliance Score'
+      ) || 0
+    ),
+    constraintBreachCount: Number(
+      foGetVal_(preferred, headers, 'Constraint Breach Count') || 0
+    )
+  };
+}
+
+function foAppendRiskBudgetExecutiveRows_(
+  dashboard,
+  rows,
+  reportId
+) {
+  const sheet = dashboard.getSheetByName(
+    FO_SHEETS.RISK_BUDGET_SUMMARY
+  );
+
   if (!sheet || sheet.getLastRow() < 2) {
     rows.push([
       'Risk Budget Intelligence',
@@ -828,8 +1006,12 @@ function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(String);
   const metrics = {};
+
   values.slice(1).forEach(function(row) {
-    const metric = String(foGetVal_(row, headers, 'Metric') || '').trim();
+    const metric = String(
+      foGetVal_(row, headers, 'Metric') || ''
+    ).trim();
+
     if (metric) {
       metrics[metric] = {
         value: foGetVal_(row, headers, 'Value'),
@@ -839,91 +1021,219 @@ function foAppendRiskBudgetExecutiveRows_(dashboard, rows, reportId) {
     }
   });
 
-  const overall = metrics['Overall Risk Budget Status'] || {};
-  const utilization = metrics['Portfolio Risk Budget Utilization'] || {};
-  const breaches = metrics['Risk Budget Breach Count'] || {};
-  const blocker = metrics['Primary Blocker'] || {};
-  const blockedPositions = metrics['Blocked Position Count'] || {};
-  const directive = metrics['Executive Risk Budget Directive'] || {};
+  function metric(name) {
+    return metrics[name] || {};
+  }
 
-  rows.push([
-    'Risk Budget Intelligence',
+  function add(name, displayName, priority, notes) {
+    const item = metric(name);
+
+    rows.push([
+      'Risk Budget Intelligence',
+      displayName,
+      item.value !== undefined && item.value !== ''
+        ? item.value
+        : 0,
+      priority || '',
+      item.status || '',
+      item.rationale || notes || '',
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+  }
+
+  const overallStatus = String(
+    metric('Overall Risk Budget Status').value || 'NOT AVAILABLE'
+  ).toUpperCase();
+
+  const overallConstraintStatus = String(
+    metric('Overall Constraint Status').value || 'NOT AVAILABLE'
+  ).toUpperCase();
+
+  add(
+    'Overall Risk Budget Status',
     'Risk Budget Status',
-    overall.value || 'NOT AVAILABLE',
-    String(overall.value || '').toUpperCase() === 'BREACH' ? 'CRITICAL' : 'NORMAL',
-    overall.status || '',
-    overall.rationale || '',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    overallStatus === 'BREACH' ? 'CRITICAL' : 'NORMAL'
+  );
 
-  rows.push([
-    'Risk Budget Intelligence',
+  add(
+    'Portfolio Risk Budget Utilization',
     'Portfolio Budget Utilization',
-    utilization.value || 0,
-    '',
-    utilization.status || '',
-    utilization.rationale || 'Proposed target weight divided by governed position-capacity total.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    ''
+  );
 
-  rows.push([
-    'Risk Budget Intelligence',
-    'Breach Count',
-    breaches.value || 0,
-    Number(breaches.value || 0) > 0 ? 'CRITICAL' : 'NORMAL',
-    breaches.status || '',
-    breaches.rationale || '',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+  add(
+    'Remaining Risk Capacity',
+    'Remaining Risk Capacity',
+    ''
+  );
 
+  add(
+    'Risk Budget Breach Count',
+    'Capacity Breaches',
+    Number(metric('Risk Budget Breach Count').value || 0) > 0
+      ? 'CRITICAL'
+      : 'NORMAL'
+  );
 
-  rows.push([
-    'Risk Budget Intelligence',
+  add(
+    'Constrained Allocation Count',
+    'Constrained Allocations',
+    Number(metric('Constrained Allocation Count').value || 0) > 0
+      ? 'HIGH'
+      : 'NORMAL'
+  );
+
+  add(
+    'Overall Constraint Status',
+    'Overall Constraint Status',
+    overallConstraintStatus === 'BLOCKED'
+      ? 'CRITICAL'
+      : 'NORMAL'
+  );
+
+  add(
     'Primary Blocker',
-    blocker.value || 'NONE',
-    String(blocker.value || 'NONE').toUpperCase() === 'NONE' ? 'NORMAL' : 'HIGH',
-    blocker.status || '',
-    blocker.rationale || 'Highest-priority blocker under the governed deterministic hierarchy.',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    'Primary Blocker',
+    String(metric('Primary Blocker').value || 'NONE').toUpperCase() ===
+      'NONE'
+      ? 'NORMAL'
+      : 'HIGH'
+  );
 
-  rows.push([
-    'Risk Budget Intelligence',
+  add(
+    'Blocked Position Count',
     'Blocked Positions',
-    blockedPositions.value || 0,
-    Number(blockedPositions.value || 0) > 0 ? 'HIGH' : 'NORMAL',
-    blockedPositions.status || '',
-    blockedPositions.rationale || '',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    Number(metric('Blocked Position Count').value || 0) > 0
+      ? 'HIGH'
+      : 'NORMAL'
+  );
 
-  rows.push([
-    'Risk Budget Intelligence',
+  if (
+    overallStatus === 'BREACH' ||
+    overallConstraintStatus === 'BLOCKED'
+  ) {
+    add(
+      'Recommendation Control Blocks',
+      'Recommendation-Control Blocks',
+      ''
+    );
+
+    add(
+      'Confidence Blocks',
+      'Confidence Blocks',
+      ''
+    );
+
+    add(
+      'Allocation Eligibility Blocks',
+      'Allocation-Eligibility Blocks',
+      ''
+    );
+
+    add(
+      'Market Data Blocks',
+      'Market-Data Blocks',
+      ''
+    );
+
+    add(
+      'Other Upstream Blocks',
+      'Other Upstream Blocks',
+      ''
+    );
+  }
+
+  add(
+    'Executive Risk Budget Directive',
     'Executive Directive',
-    directive.value || 'REVIEW RISK BUDGET',
-    '',
-    directive.status || '',
-    directive.rationale || '',
-    reportId,
-    FO_CONFIG.PLATFORM_VERSION,
-    FO_CONFIG.BASELINE,
-    new Date()
-  ]);
+    overallStatus === 'BREACH' ? 'CRITICAL' : ''
+  );
+}
+
+function foAppendMaterialActionExplainability_(
+  rows,
+  integrationA233,
+  reportId
+) {
+  const cards =
+    integrationA233 &&
+    integrationA233.actionCards
+      ? integrationA233.actionCards.slice()
+      : [];
+
+  if (!cards.length) return;
+
+  const materialCards = cards.filter(function(card) {
+    const executionStatus = String(
+      card.executionStatus || ''
+    ).toUpperCase();
+
+    return (
+      executionStatus.indexOf('BLOCKED') === 0 ||
+      String(card.priorityLevel || '').toUpperCase() === 'CRITICAL' ||
+      String(card.priorityLevel || '').toUpperCase() === 'HIGH' ||
+      Number(card.materialityScore || 0) >= 70
+    );
+  }).sort(function(a, b) {
+    const aBlocked =
+      String(a.executionStatus || '').indexOf('BLOCKED') === 0
+        ? 1
+        : 0;
+
+    const bBlocked =
+      String(b.executionStatus || '').indexOf('BLOCKED') === 0
+        ? 1
+        : 0;
+
+    if (aBlocked !== bBlocked) return bBlocked - aBlocked;
+
+    return (
+      Number(b.executivePriorityScore || b.materialityScore || 0) -
+      Number(a.executivePriorityScore || a.materialityScore || 0)
+    );
+  }).slice(0, 3);
+
+  materialCards.forEach(function(card) {
+    const executionStatus =
+      String(card.executionStatus || 'INFORMATIONAL ONLY');
+
+    const trigger =
+      String(card.trigger || '').trim() ||
+      'Refresh governed inputs before reconsideration.';
+
+    const invalidation =
+      String(card.invalidationCondition || '').trim();
+
+    const notes = [
+      'Security type: ' +
+        String(card.securityType || 'NOT AVAILABLE'),
+      'Execution status: ' + executionStatus,
+      'Reconsider when: ' + trigger,
+      invalidation
+        ? 'Invalidation: ' + invalidation
+        : ''
+    ].filter(function(value) {
+      return value;
+    }).join(' | ');
+
+    rows.push([
+      'Material Action Explainability',
+      String(card.ticker || 'NOT AVAILABLE'),
+      String(card.action || 'REVIEW') +
+        ' | ' +
+        executionStatus,
+      String(card.priorityLevel || ''),
+      String(card.riskImpact || ''),
+      notes,
+      reportId,
+      FO_CONFIG.PLATFORM_VERSION,
+      FO_CONFIG.BASELINE,
+      new Date()
+    ]);
+  });
 }
 
 function foArchiveExecutiveReport_(dashboard, reportId, summary) {
