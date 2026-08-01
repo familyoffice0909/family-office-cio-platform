@@ -567,39 +567,73 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     rows.push(['Portfolio Valuation Evidence', metric, value, priority || '', risk || '', notes || '', reportId, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE, new Date()]);
   }
 
-  addValuationMetric_('Certification Status', certificationStatus,
+  addValuationMetric_(
+    'Certification Status',
+    foExecutiveDisplayState_(certificationStatus),
     certificationStatus.toUpperCase() === 'CERTIFIED' ? 'NORMAL' : 'CRITICAL',
     certificationStatus.toUpperCase() === 'CERTIFIED' ? 'LOW' : 'HIGH',
     'Certification requires complete valuation evidence and successful reconciliation.');
-  addValuationMetric_('Valuation Completeness', completeness,
+  addValuationMetric_(
+    'Valuation Completeness',
+    foExecutiveDisplayState_(completeness),
     completeness === 'COMPLETE' ? 'NORMAL' : 'CRITICAL',
     completeness === 'COMPLETE' ? 'LOW' : 'HIGH',
     'Completeness is separate from reconciliation.');
-  addValuationMetric_('Reconciliation Status', reconciliationStatus,
+  addValuationMetric_(
+    'Reconciliation Status',
+    foExecutiveDisplayState_(reconciliationStatus),
     reconciliationPassed ? 'NORMAL' : 'CRITICAL',
     reconciliationPassed && Math.abs(reconciliationVariance) <= 0.01 ? 'LOW' : 'HIGH',
     'Reconciliation variance: C$' + reconciliationVariance + '; governed tolerance is within C$0.01.');
-  addValuationMetric_('Valued-Position Market Value', valuedMarketValue, '', '',
+  addValuationMetric_(
+    'Valued-Position Market Value',
+    foExecutiveFormatCurrency_(valuedMarketValue),
+    '',
+    '',
     'Market value for positions with supported current or persisted-fallback valuation evidence.');
-  addValuationMetric_('Total Cost Basis', totalCostBasis,
+  addValuationMetric_(
+    'Total Cost Basis',
+    foExecutiveFormatCurrency_(totalCostBasis),
     costBasisCoverage >= 1 ? 'NORMAL' : 'HIGH',
     costBasisCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Documented cost basis across all active positions.');
-  addValuationMetric_('Comparable Cost Basis', comparableCostBasis, '', '',
+  addValuationMetric_(
+    'Comparable Cost Basis',
+    foExecutiveFormatCurrency_(comparableCostBasis),
+    '',
+    '',
     'Cost basis only for positions included in valued-position market value.');
-  addValuationMetric_('Full Portfolio Unrealized Gain / Loss', fullGainLoss,
+  addValuationMetric_(
+    'Full Portfolio Unrealized Gain / Loss',
+    fullReturnEligible
+      ? foExecutiveFormatCurrency_(fullGainLoss)
+      : foExecutiveDisplayState_(fullGainLoss),
     fullReturnEligible ? '' : 'CRITICAL',
     fullReturnEligible ? '' : 'HIGH',
     fullReturnEligible ? 'Complete-portfolio variance.' : 'SUPPRESSED because price coverage is incomplete.');
-  addValuationMetric_('Full Portfolio Unrealized Gain / Loss %', fullGainLossPct,
+  addValuationMetric_(
+    'Full Portfolio Unrealized Gain / Loss %',
+    fullReturnEligible
+      ? foExecutiveFormatPercent_(fullGainLossPct)
+      : foExecutiveDisplayState_(fullGainLossPct),
     fullReturnEligible ? '' : 'CRITICAL',
     fullReturnEligible ? '' : 'HIGH',
     fullReturnEligible ? 'Complete-portfolio return.' : 'SUPPRESSED because price coverage is incomplete.');
-  addValuationMetric_('Comparable Unrealized Gain / Loss', comparableGainLoss, '', '',
+  addValuationMetric_(
+    'Comparable Unrealized Gain / Loss',
+    foExecutiveFormatCurrency_(comparableGainLoss),
+    '',
+    '',
     'Like-for-like variance for valued positions only.');
-  addValuationMetric_('Comparable Unrealized Gain / Loss %', comparableGainLossPct, '', '',
+  addValuationMetric_(
+    'Comparable Unrealized Gain / Loss %',
+    foExecutiveFormatPercent_(comparableGainLossPct),
+    '',
+    '',
     'Like-for-like return for valued positions only.');
-  addValuationMetric_('Price Coverage %', priceCoverage,
+  addValuationMetric_(
+    'Price Coverage %',
+    foExecutiveFormatPercent_(priceCoverage),
     priceCoverage >= 1 ? 'NORMAL' : 'HIGH',
     priceCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Coverage ratio across active positions.');
@@ -628,7 +662,9 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     Number(metrics['Missing Cost Basis Count'] || 0) === 0 ? 'LOW' : 'MEDIUM',
     'Positions without documented cost basis.'
   );
-  addValuationMetric_('Cost Basis Coverage %', costBasisCoverage,
+  addValuationMetric_(
+    'Cost Basis Coverage %',
+    foExecutiveFormatPercent_(costBasisCoverage),
     costBasisCoverage >= 1 ? 'NORMAL' : 'HIGH',
     costBasisCoverage >= 1 ? 'LOW' : 'MEDIUM',
     'Coverage ratio across active positions.');
@@ -644,7 +680,9 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
     latestPriceTimestamp === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
     latestPriceTimestamp === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
     'Most recent supported price timestamp used in valuation.');
-  addValuationMetric_('Price Basis', priceBasis,
+  addValuationMetric_(
+    'Price Basis',
+    foExecutiveDisplayState_(priceBasis),
     priceBasis === 'NOT AVAILABLE' ? 'HIGH' : 'NORMAL',
     priceBasis === 'NOT AVAILABLE' ? 'MEDIUM' : 'LOW',
     'Portfolio-level basis: LIVE, DELAYED, PRIOR_CLOSE, PERSISTED_FALLBACK, ESTIMATED, or MIXED.');
@@ -652,7 +690,13 @@ function foAppendPortfolioValuationExecutiveRows_(rows, metrics, reportId) {
   ['TFSA', 'LIRA', 'IBKR'].forEach(function(account) {
     const key = account + ' Market Value';
     if (Object.prototype.hasOwnProperty.call(metrics, key)) {
-      addValuationMetric_(key, Number(metrics[key] || 0), '', '', 'Account-level governed valuation evidence.');
+      addValuationMetric_(
+        key,
+        foExecutiveFormatCurrency_(Number(metrics[key] || 0)),
+        '',
+        '',
+        'Account-level governed valuation evidence.'
+      );
     }
   });
   if (Object.prototype.hasOwnProperty.call(metrics, 'IBKR Cash Included')) {
@@ -747,13 +791,17 @@ function foAppendPortfolioOptimizationExecutiveRows_(
 
   addOptimizationMetric_(
     'Optimized Incremental Weight',
-    Number(metrics['Optimized Incremental Weight'] || 0),
+    foExecutiveFormatPercent_(
+      Number(metrics['Optimized Incremental Weight'] || 0)
+    ),
     'Aggregate optimized incremental portfolio weight.'
   );
 
   addOptimizationMetric_(
     'Largest Optimized Target Weight',
-    Number(metrics['Largest Optimized Target Weight'] || 0),
+    foExecutiveFormatPercent_(
+      Number(metrics['Largest Optimized Target Weight'] || 0)
+    ),
     'Largest position weight produced by the governed optimization result.'
   );
 }
@@ -820,7 +868,7 @@ function foAppendPortfolioScenarioExecutiveRows_(
 
   addScenarioMetric_(
     'Scenario Score',
-    scenario.scenarioScore,
+    foExecutiveFormatScore_(scenario.scenarioScore),
     '',
     scenario.stressContext,
     'Deterministic comparison score; not a return forecast.'
@@ -828,7 +876,9 @@ function foAppendPortfolioScenarioExecutiveRows_(
 
   addScenarioMetric_(
     'Proposed Incremental Weight',
-    Number(scenario.totalIncrementalWeight || 0),
+    foExecutiveFormatPercent_(
+      Number(scenario.totalIncrementalWeight || 0)
+    ),
     '',
     '',
     'Preferred-scenario proposed incremental portfolio weight.'
@@ -844,7 +894,9 @@ function foAppendPortfolioScenarioExecutiveRows_(
 
   addScenarioMetric_(
     'Largest Projected Position',
-    Number(scenario.largestTargetWeight || 0),
+    foExecutiveFormatPercent_(
+      Number(scenario.largestTargetWeight || 0)
+    ),
     '',
     '',
     'Largest target weight under the preferred scenario.'
@@ -912,7 +964,9 @@ function foAppendPortfolioScenarioExecutiveRows_(
 
   addScenarioMetric_(
     'Scenario Recommendation',
-    scenario.executiveRecommendation,
+    foExecutiveDisplayState_(
+      scenario.executiveRecommendation
+    ),
     scenario.portfolioRiskLevel === 'CRITICAL'
       ? 'CRITICAL'
       : 'NORMAL',
@@ -1025,15 +1079,26 @@ function foAppendRiskBudgetExecutiveRows_(
     return metrics[name] || {};
   }
 
-  function addRiskBudgetMetric_(name, displayName, priority, notes) {
+  function addRiskBudgetMetric_(
+    name,
+    displayName,
+    priority,
+    notes,
+    formatter
+  ) {
     const item = metric(name);
+    const rawValue =
+      item.value !== undefined && item.value !== ''
+        ? item.value
+        : 0;
+    const displayValue = formatter
+      ? formatter(rawValue)
+      : foExecutiveDisplayState_(rawValue);
 
     rows.push([
       'Risk Budget Intelligence',
       displayName,
-      item.value !== undefined && item.value !== ''
-        ? item.value
-        : 0,
+      displayValue,
       priority || '',
       item.status || '',
       item.rationale || notes || '',
@@ -1061,13 +1126,17 @@ function foAppendRiskBudgetExecutiveRows_(
   addRiskBudgetMetric_(
     'Portfolio Risk Budget Utilization',
     'Portfolio Budget Utilization',
-    ''
+    '',
+    '',
+    foExecutiveFormatPercent_
   );
 
   addRiskBudgetMetric_(
     'Remaining Risk Capacity',
     'Remaining Risk Capacity',
-    ''
+    '',
+    '',
+    foExecutiveFormatPercent_
   );
 
   addRiskBudgetMetric_(
@@ -1220,7 +1289,7 @@ function foAppendMaterialActionExplainability_(
     }).join(' | ');
 
     rows.push([
-      'Material Action Explainability',
+      'Portfolio Actions',
       String(card.ticker || 'NOT AVAILABLE'),
       String(card.action || 'REVIEW') +
         ' | ' +
@@ -1263,6 +1332,57 @@ function foArchiveExecutiveReport_(dashboard, reportId, summary) {
     FO_CONFIG.BASELINE
   ]);
 }
+
+function foExecutiveFormatCurrency_(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return foExecutiveDisplayState_(value);
+  }
+
+  return 'C$' + number.toLocaleString('en-CA', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function foExecutiveFormatPercent_(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return foExecutiveDisplayState_(value);
+  }
+
+  return (number * 100).toFixed(2) + '%';
+}
+
+function foExecutiveFormatScore_(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return foExecutiveDisplayState_(value);
+  }
+
+  return number.toFixed(2) + ' / 100';
+}
+
+function foExecutiveDisplayState_(value) {
+  const text = String(
+    value === null || value === undefined ? '' : value
+  ).trim();
+
+  const states = {
+    NOT_AVAILABLE: 'Not available',
+    'NOT AVAILABLE': 'Not available',
+    PARTIALLY_CERTIFIED: 'Partially Certified',
+    REVIEW_REQUIRED: 'Review Required',
+    RISK_BUDGET_CAPACITY: 'Risk-Budget Capacity',
+    SUPPRESSED: 'Suppressed'
+  };
+
+  return states[text.toUpperCase()] || text;
+}
+
 
 function foRunExecutiveReportSmokeTest() {
   const module = 'ExecutiveReportingEngine';
