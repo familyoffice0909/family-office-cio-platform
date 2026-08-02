@@ -75,6 +75,12 @@ function foRunWeeklyCioReportA240(options) {
   const positionRiskMetadata =
     foA240LatestPositionRiskMetadata_(dashboard);
 
+  const positionRiskRows = foA240RowsForRun_(
+    dashboard.getSheetByName(FO_SHEETS.POSITION_RISK),
+    'Run ID',
+    positionRiskMetadata.runId
+  );
+
   const decisionEvidenceAlignment =
     foA240ValidateDecisionEvidenceAlignment_(
       decisionRunId,
@@ -109,6 +115,31 @@ function foRunWeeklyCioReportA240(options) {
       ? priorBaseline.priorReport
       : {};
 
+  const reportingPeriodAlignment =
+    foA240ValidateReportingPeriodAlignment_(
+      weekEnding,
+      run,
+      state,
+      returnMetrics,
+      coverageMetrics,
+      comparisonEligibility,
+      positionRiskMetadata,
+      certificationMetadata,
+      priorBaseline
+    );
+
+  const concentrationAuthority =
+    foA240ResolveConcentrationAuthority_(
+      state,
+      positionRiskRows,
+      positionRiskMetadata
+    );
+
+  const trendAuthority =
+    foA240ValidateTrendAuthority_(
+      actionCards
+    );
+
   const model = foA240BuildModel_(
     state,
     actionCards,
@@ -119,6 +150,9 @@ function foRunWeeklyCioReportA240(options) {
     certification,
     positionRisk,
     decisionEvidenceAlignment,
+    reportingPeriodAlignment,
+    concentrationAuthority,
+    trendAuthority,
     priorArchive,
     reportId,
     decisionRunId,
@@ -179,6 +213,24 @@ function foRunWeeklyCioReportA240(options) {
       decisionEvidenceAlignment.reason,
     decisionEvidenceComponents:
       decisionEvidenceAlignment,
+    reportingPeriodAlignment:
+      reportingPeriodAlignment.status,
+    reportingPeriodReason:
+      reportingPeriodAlignment.reason,
+    reportingPeriodEvidence:
+      reportingPeriodAlignment,
+    concentrationAuthority:
+      concentrationAuthority.status,
+    concentrationAuthorityReason:
+      concentrationAuthority.reason,
+    concentrationAuthorityEvidence:
+      concentrationAuthority,
+    trendAuthority:
+      trendAuthority.status,
+    trendAuthorityReason:
+      trendAuthority.reason,
+    trendAuthorityEvidence:
+      trendAuthority,
     releaseTarget: FO_A240_RELEASE_TARGET
   };
 }
@@ -193,6 +245,9 @@ function foA240BuildModel_(
   certification,
   positionRisk,
   decisionEvidenceAlignment,
+  reportingPeriodAlignment,
+  concentrationAuthority,
+  trendAuthority,
   priorArchive,
   reportId,
   decisionRunId,
@@ -302,6 +357,96 @@ function foA240BuildModel_(
       'Return Attribution Summary A232 | ' +
       'Attribution Coverage Summary A2311 | ' +
       'Production Certification | Position Risk'
+  );
+
+  add(
+    'REPORT GOVERNANCE',
+    reportingPeriodAlignment.status === 'INCOMPATIBLE'
+      ? 'CRITICAL'
+      : reportingPeriodAlignment.status === 'PARTIAL'
+        ? 'HIGH'
+        : 'NORMAL',
+    'Reporting Period Alignment',
+    reportingPeriodAlignment.status,
+    '',
+    '',
+    reportingPeriodAlignment.status === 'INCOMPATIBLE'
+      ? 'BLOCKED'
+      : reportingPeriodAlignment.status === 'PARTIAL'
+        ? 'CONTROLLED'
+        : 'READY',
+    reportingPeriodAlignment.reason,
+    'Executive Decision State A233 | ' +
+      'Return Attribution Summary A232 | ' +
+      'Attribution Coverage Summary A2311 | ' +
+      'Position Risk | Production Certification | ' +
+      'Weekly CIO Report Archive A240'
+  );
+
+  add(
+    'REPORT GOVERNANCE',
+    concentrationAuthority.status === 'NOT CERTIFIED'
+      ? 'CRITICAL'
+      : concentrationAuthority.status === 'PARTIAL'
+        ? 'HIGH'
+        : 'NORMAL',
+    'Concentration Authority',
+    concentrationAuthority.status,
+    '',
+    '',
+    concentrationAuthority.status === 'NOT CERTIFIED'
+      ? 'BLOCKED'
+      : concentrationAuthority.status === 'PARTIAL'
+        ? 'CONTROLLED'
+        : 'READY',
+    concentrationAuthority.reason +
+      ' | Basis: ' + concentrationAuthority.basis +
+      ' | Ticker: ' + concentrationAuthority.ticker +
+      (
+        concentrationAuthority.account
+          ? ' | Account: ' + concentrationAuthority.account
+          : ''
+      ) +
+      ' | A233 weight: ' +
+      foA240PercentPointsText_(
+        concentrationAuthority.reportedPct
+      ) +
+      (
+        concentrationAuthority.reconciledPct === null
+          ? ''
+          : ' | Position Risk weight: ' +
+            foA240PercentPointsText_(
+              concentrationAuthority.reconciledPct
+            )
+      ),
+    'Executive Decision State A233 | Position Risk'
+  );
+
+  add(
+    'REPORT GOVERNANCE',
+    trendAuthority.status === 'NOT CERTIFIED'
+      ? 'CRITICAL'
+      : trendAuthority.status === 'PARTIAL'
+        ? 'HIGH'
+        : 'NORMAL',
+    'Trend Authority',
+    trendAuthority.status,
+    '',
+    '',
+    trendAuthority.status === 'NOT CERTIFIED'
+      ? 'BLOCKED'
+      : trendAuthority.status === 'PARTIAL'
+        ? 'CONTROLLED'
+        : 'READY',
+    trendAuthority.reason +
+      ' | Certified cards: ' +
+      trendAuthority.certifiedCount +
+      ' | Partial cards: ' +
+      trendAuthority.partialCount +
+      ' | Not certified cards: ' +
+      trendAuthority.notCertifiedCount,
+    'Report Action Cards A233 | Investment Trend Intelligence | ' +
+      'Materiality & Prioritization Intelligence'
   );
 
   add(
@@ -774,6 +919,18 @@ function foA240BuildModel_(
       decisionEvidenceAlignment.status,
     decisionEvidenceReason:
       decisionEvidenceAlignment.reason,
+    reportingPeriodAlignment:
+      reportingPeriodAlignment.status,
+    reportingPeriodReason:
+      reportingPeriodAlignment.reason,
+    concentrationAuthority:
+      concentrationAuthority.status,
+    concentrationAuthorityReason:
+      concentrationAuthority.reason,
+    trendAuthority:
+      trendAuthority.status,
+    trendAuthorityReason:
+      trendAuthority.reason,
     actionQualitySignature: foA240ActionQualitySignature_(actionCards)
   };
 }
@@ -966,6 +1123,40 @@ function foRunWeeklyCioReportValidationA240(
       return row.Section === 'DATA READINESS';
     });
   }, 'HIGH');
+
+  suite.add(
+    'PERIOD',
+    'Reporting-period alignment is governable',
+    function() {
+      const reported = foA240FindReportMetric_(
+        reportSheet,
+        'Reporting Period Alignment'
+      );
+
+      const reportedStatus = foA240Text_(
+        reported['Current Value / Action']
+      );
+
+      const reportedControl = foA240Text_(
+        reported.Status
+      );
+
+      if (reportedStatus === 'INCOMPATIBLE') {
+        return false;
+      }
+
+      if (reportedStatus === 'ALIGNED') {
+        return reportedControl === 'READY';
+      }
+
+      if (reportedStatus === 'PARTIAL') {
+        return reportedControl === 'CONTROLLED';
+      }
+
+      return false;
+    },
+    'CRITICAL'
+  );
 
   suite.add(
     'LINEAGE',
@@ -1162,27 +1353,124 @@ function foRunWeeklyCioReportValidationA240(
     }, 'CRITICAL');
 
   suite.add('RECONCILIATION',
-    'Largest position percentage matches Position Risk', function() {
+    'Largest position percentage matches governed position authority',
+    function() {
       const state = foA240RowsForRun_(
         stateSheet, 'Run ID', expectedDecisionRunId
       )[0] || {};
-      const ticker = foA240Text_(
-        state['Largest Position Ticker']
-      ).toUpperCase();
-      const sourcePct = foA240Number_(state['Largest Position %']);
-      const row = foA240FindReportMetric_(reportSheet, 'Largest Position');
-      const current = foA240Text_(row['Current Value / Action']);
+
+      const metadata =
+        foA240LatestPositionRiskMetadata_(dashboard);
+
+      const rows = foA240RowsForRun_(
+        dashboard.getSheetByName(FO_SHEETS.POSITION_RISK),
+        'Run ID',
+        metadata.runId
+      );
+
+      const authority =
+        foA240ResolveConcentrationAuthority_(
+          state,
+          rows,
+          metadata
+        );
+
+      const reported = foA240FindReportMetric_(
+        reportSheet,
+        'Largest Position'
+      );
+
+      const current = foA240Text_(
+        reported['Current Value / Action']
+      );
+
       const match = current.match(/—\s*(-?[0-9.]+)%/);
       const reportedPct = match ? Number(match[1]) : NaN;
-      const weights = foA240PositionRiskMap_(dashboard);
-      const riskPct = Object.prototype.hasOwnProperty.call(
-        weights.tickerTotals, ticker
-      ) ? weights.tickerTotals[ticker] : null;
-      return Number.isFinite(reportedPct) &&
-        reportedPct >= 0 && reportedPct <= 100 &&
-        Math.abs(reportedPct - sourcePct) <= 0.01 &&
-        (riskPct === null || Math.abs(reportedPct - riskPct) <= 0.02);
+
+      return (
+        authority.status !== 'NOT CERTIFIED' &&
+        Number.isFinite(reportedPct) &&
+        Math.abs(
+          reportedPct - authority.reportedPct
+        ) <= 0.01 &&
+        (
+          authority.reconciledPct === null ||
+          Math.abs(
+            reportedPct - authority.reconciledPct
+          ) <= 0.02
+        )
+      );
     }, 'CRITICAL');
+
+
+
+  suite.add(
+    'GOVERNANCE',
+    'Trend authority is certified or controlled',
+    function() {
+
+      const row = foA240FindReportMetric_(
+        reportSheet,
+        'Trend Authority'
+      );
+
+      const status = foA240Text_(
+        row['Current Value / Action']
+      );
+
+      const control = foA240Text_(
+        row.Status
+      );
+
+      if (status === 'NOT CERTIFIED') {
+        return false;
+      }
+
+      if (status === 'PARTIAL') {
+        return control === 'CONTROLLED';
+      }
+
+      if (status === 'CERTIFIED') {
+        return control === 'READY';
+      }
+
+      return false;
+
+    },
+    'CRITICAL'
+  );
+
+  suite.add(
+    'GOVERNANCE',
+    'Concentration authority is certified or controlled',
+    function() {
+      const row = foA240FindReportMetric_(
+        reportSheet,
+        'Concentration Authority'
+      );
+
+      const status = foA240Text_(
+        row['Current Value / Action']
+      );
+
+      const control = foA240Text_(row.Status);
+
+      if (status === 'NOT CERTIFIED') {
+        return false;
+      }
+
+      if (status === 'CERTIFIED') {
+        return control === 'READY';
+      }
+
+      if (status === 'PARTIAL') {
+        return control === 'CONTROLLED';
+      }
+
+      return false;
+    },
+    'CRITICAL'
+  );
 
   suite.add('PRESENTATION',
     'Report contains no implausible portfolio percentages', function() {
@@ -1489,6 +1777,251 @@ function foA240WhatsNew_(
   };
 }
 
+/**
+ * D1-C6B.1
+ *
+ * Validates the governed trend evidence carried by A233 Action Cards.
+ *
+ * Trend and Overall Trajectory represent different governed concepts:
+ * - Trend may describe current price or recommendation direction.
+ * - Overall Trajectory describes multi-period strategic evolution.
+ *
+ * The helper does not calculate trends, trajectories, confidence, materiality,
+ * or portfolio deterioration. It evaluates only inherited governed evidence.
+ */
+function foA240ValidateTrendAuthority_(actionCards) {
+  const cards = Array.isArray(actionCards)
+    ? actionCards
+    : [];
+
+  const result = {
+    status: '',
+    reason: '',
+    cardCount: cards.length,
+    certifiedCount: 0,
+    partialCount: 0,
+    notCertifiedCount: 0,
+    cards: []
+  };
+
+  if (!cards.length) {
+    result.status = 'PARTIAL';
+    result.reason =
+      'No governed A233 Action Cards are available for trend certification.';
+    return result;
+  }
+
+  cards.forEach(function(card) {
+    const ticker = foA240Text_(card.Ticker).toUpperCase();
+    const account = foA240Text_(card.Account);
+
+    const trend = foA240Text_(card.Trend);
+    const trajectory = foA240Text_(
+      card['Overall Trajectory']
+    ).toUpperCase();
+    const reversalStatus = foA240Text_(
+      card['Reversal Status']
+    ).toUpperCase();
+    const evidenceStrength = foA240Text_(
+      card['Trend Evidence Strength']
+    ).toUpperCase();
+    const significantChange = foA240Text_(
+      card['Significant Change']
+    ).toUpperCase();
+
+    const confidence = foA240Number_(
+      card.Confidence
+    );
+    const priorConfidence = foA240Number_(
+      card['Prior Confidence']
+    );
+    const confidenceDelta = foA240Number_(
+      card['Confidence Delta']
+    );
+
+    const cardResult = {
+      ticker: ticker,
+      account: account,
+      trend: trend,
+      trajectory: trajectory,
+      reversalStatus: reversalStatus,
+      evidenceStrength: evidenceStrength,
+      significantChange: significantChange,
+      confidence: confidence,
+      priorConfidence: priorConfidence,
+      confidenceDelta: confidenceDelta,
+      status: '',
+      reason: ''
+    };
+
+    if (!ticker) {
+      cardResult.status = 'NOT CERTIFIED';
+      cardResult.reason =
+        'Action Card ticker is unavailable.';
+      result.notCertifiedCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    const hasTrendEvidence = Boolean(
+      trend ||
+      trajectory ||
+      reversalStatus ||
+      evidenceStrength
+    );
+
+    if (!hasTrendEvidence) {
+      cardResult.status = 'PARTIAL';
+      cardResult.reason =
+        'No governed trend or trajectory evidence is available.';
+      result.partialCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    const reversalIndicated =
+      reversalStatus &&
+      reversalStatus !== 'NONE' &&
+      reversalStatus !== 'STABLE';
+
+    if (
+      reversalIndicated &&
+      !trajectory
+    ) {
+      cardResult.status = 'NOT CERTIFIED';
+      cardResult.reason =
+        'Reversal status is present without an Overall Trajectory.';
+      result.notCertifiedCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    if (
+      reversalStatus.indexOf('DOWNWARD') >= 0 &&
+      trajectory &&
+      trajectory.indexOf('DOWNWARD') < 0
+    ) {
+      cardResult.status = 'NOT CERTIFIED';
+      cardResult.reason =
+        'Downward reversal status conflicts with Overall Trajectory.';
+      result.notCertifiedCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    if (
+      reversalStatus.indexOf('UPWARD') >= 0 &&
+      trajectory &&
+      trajectory.indexOf('UPWARD') < 0
+    ) {
+      cardResult.status = 'NOT CERTIFIED';
+      cardResult.reason =
+        'Upward reversal status conflicts with Overall Trajectory.';
+      result.notCertifiedCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    const confidenceFieldsAvailable =
+      card.Confidence !== undefined &&
+      card['Prior Confidence'] !== undefined &&
+      card['Confidence Delta'] !== undefined;
+
+    if (confidenceFieldsAvailable) {
+      const calculatedDelta =
+        confidence - priorConfidence;
+
+      if (
+        Math.abs(
+          calculatedDelta - confidenceDelta
+        ) > 0.01
+      ) {
+        cardResult.status = 'NOT CERTIFIED';
+        cardResult.reason =
+          'Confidence Delta does not reconcile to current and prior confidence.';
+        result.notCertifiedCount++;
+        result.cards.push(cardResult);
+        return;
+      }
+    }
+
+    const significantChangeAsserted = [
+      'YES',
+      'TRUE',
+      'MATERIAL CHANGE',
+      'SIGNIFICANT'
+    ].indexOf(significantChange) >= 0;
+
+    if (
+      significantChangeAsserted &&
+      !trajectory &&
+      !trend
+    ) {
+      cardResult.status = 'NOT CERTIFIED';
+      cardResult.reason =
+        'Significant Change is asserted without governed trend evidence.';
+      result.notCertifiedCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    if (
+      !trajectory ||
+      !evidenceStrength ||
+      !confidenceFieldsAvailable
+    ) {
+      const missing = [];
+
+      if (!trajectory) {
+        missing.push('Overall Trajectory');
+      }
+
+      if (!evidenceStrength) {
+        missing.push('Trend Evidence Strength');
+      }
+
+      if (!confidenceFieldsAvailable) {
+        missing.push('confidence-history fields');
+      }
+
+      cardResult.status = 'PARTIAL';
+      cardResult.reason =
+        'Governed trend evidence is partial: ' +
+        missing.join(', ') + '.';
+      result.partialCount++;
+      result.cards.push(cardResult);
+      return;
+    }
+
+    cardResult.status = 'CERTIFIED';
+    cardResult.reason =
+      'Governed trend, trajectory, reversal, and confidence evidence are internally consistent.';
+    result.certifiedCount++;
+    result.cards.push(cardResult);
+  });
+
+  if (result.notCertifiedCount > 0) {
+    result.status = 'NOT CERTIFIED';
+    result.reason =
+      result.notCertifiedCount +
+      ' Action Card trend record(s) contain conflicting or unsupported governed evidence.';
+    return result;
+  }
+
+  if (result.partialCount > 0) {
+    result.status = 'PARTIAL';
+    result.reason =
+      result.partialCount +
+      ' Action Card trend record(s) have incomplete governed trend evidence.';
+    return result;
+  }
+
+  result.status = 'CERTIFIED';
+  result.reason =
+    'All Action Card trend records contain internally consistent governed trend evidence.';
+  return result;
+}
+
 function foA240ActionQualitySignature_(actionCards) {
   return actionCards.map(function(card) {
     const ticker = foA240Text_(card.Ticker).toUpperCase();
@@ -1673,6 +2206,127 @@ function foA240LatestPositionRiskMetadata_(dashboard) {
     baseline: foA240Text_(row.Baseline),
     source: 'Position Risk'
   };
+}
+
+/**
+ * D1-C5B.1
+ *
+ * Reconciles the A233 largest-position authority against the latest governed
+ * Position Risk rows.
+ *
+ * Portfolio Risk defines concentration at the individual ticker/account
+ * position level. Ticker-level aggregation is not used as the authoritative
+ * reconciliation basis.
+ */
+function foA240ResolveConcentrationAuthority_(
+  state,
+  positionRiskRows,
+  positionRiskMetadata
+) {
+  const ticker = foA240Text_(
+    state && state['Largest Position Ticker']
+  ).toUpperCase();
+
+  const reportedPct = foA240Number_(
+    state && state['Largest Position %']
+  );
+
+  const freshnessCoverage = foA240Number_(
+    state && state['Price Freshness Coverage %']
+  );
+
+  const rows = Array.isArray(positionRiskRows)
+    ? positionRiskRows
+    : [];
+
+  const result = {
+    status: '',
+    reason: '',
+    ticker: ticker,
+    account: '',
+    reportedPct: reportedPct,
+    reconciledPct: null,
+    matchingPositionCount: 0,
+    valuationCoverage: freshnessCoverage,
+    runId: foA240Text_(
+      positionRiskMetadata && positionRiskMetadata.runId
+    ),
+    basis: 'LARGEST VALUED TICKER/ACCOUNT POSITION'
+  };
+
+  if (!ticker) {
+    result.status = 'NOT CERTIFIED';
+    result.reason =
+      'A233 does not expose a largest-position ticker.';
+    return result;
+  }
+
+  if (!Number.isFinite(reportedPct) || reportedPct < 0) {
+    result.status = 'NOT CERTIFIED';
+    result.reason =
+      'A233 largest-position percentage is unavailable or invalid.';
+    return result;
+  }
+
+  if (!result.runId || !rows.length) {
+    result.status = 'NOT CERTIFIED';
+    result.reason =
+      'Latest governed Position Risk evidence is unavailable.';
+    return result;
+  }
+
+  const tickerRows = rows.filter(function(row) {
+    return foA240Text_(row.Ticker).toUpperCase() === ticker;
+  });
+
+  const tolerance = 0.02;
+
+  const matchingRows = tickerRows.filter(function(row) {
+    const positionPct = foA240Number_(
+      row['Portfolio Weight %'] !== undefined
+        ? row['Portfolio Weight %']
+        : row['Portfolio Weight']
+    );
+
+    return Math.abs(positionPct - reportedPct) <= tolerance;
+  });
+
+  result.matchingPositionCount = matchingRows.length;
+
+  if (!matchingRows.length) {
+    result.status = 'NOT CERTIFIED';
+    result.reason =
+      'A233 largest-position percentage does not reconcile to an individual Position Risk ticker/account row.';
+    return result;
+  }
+
+  const matched = matchingRows[0];
+
+  result.account = foA240Text_(matched.Account);
+  result.reconciledPct = foA240Number_(
+    matched['Portfolio Weight %'] !== undefined
+      ? matched['Portfolio Weight %']
+      : matched['Portfolio Weight']
+  );
+
+  if (matchingRows.length > 1) {
+    result.status = 'PARTIAL';
+    result.reason =
+      'Multiple Position Risk ticker/account rows match the governed largest-position percentage.';
+    return result;
+  }
+
+  if (freshnessCoverage < 1) {
+    result.status = 'PARTIAL';
+    result.reason =
+      'Largest valued position reconciles, but incomplete price freshness means full-portfolio concentration is not certified.';
+    return result;
+  }
+
+  result.status = 'CERTIFIED';
+  result.reason =
+    'A233 largest-position authority reconciles to one governed Position Risk ticker/account row.';
+  return result;
 }
 
 function foA240ResolvePositionWeight_(map, ticker, account, fallback) {
@@ -1965,6 +2619,304 @@ function foA240ValidateDecisionEvidenceAlignment_(
   return result;
 }
 
+/**
+ * D1-C4.2
+ *
+ * Validates whether the governed evidence consumed by the Weekly Strategy
+ * Review belongs to a defensible reporting-period environment.
+ *
+ * The helper does not calculate performance, create snapshots, or require
+ * separate governed engines to share an identical timestamp.
+ */
+function foA240ValidateReportingPeriodAlignment_(
+  weekEnding,
+  run,
+  state,
+  returnMetrics,
+  coverageMetrics,
+  comparisonEligibility,
+  positionRiskMetadata,
+  certificationMetadata,
+  priorBaseline
+) {
+  const reportTimestamp = foA240Text_(
+    run && run.timestamp
+  );
+
+  const reportTime = foA240DateTime_(
+    reportTimestamp
+  );
+
+  const weekEndingTime = foA240DateTime_(
+    weekEnding
+  );
+
+  const runtimeVersion = foA240Text_(
+    run && run.platformVersion
+  );
+
+  const runtimeBaseline = foA240Text_(
+    run && run.baseline
+  );
+
+  const result = {
+    status: '',
+    reason: '',
+    weekEnding: weekEnding,
+    reportTimestamp: reportTimestamp,
+    decisionTimestamp: foA240Text_(
+      state && state.Timestamp
+    ),
+    attributionTimestamp: foA240Text_(
+      returnMetrics && returnMetrics.timestamp
+    ),
+    coverageTimestamp: foA240Text_(
+      coverageMetrics && coverageMetrics.timestamp
+    ),
+    valuationTimestamp: foA240Text_(
+      comparisonEligibility &&
+      comparisonEligibility.valuationTimestamp
+    ),
+    latestPriceTimestamp: foA240Text_(
+      comparisonEligibility &&
+      comparisonEligibility.latestPriceTimestamp
+    ),
+    positionRiskTimestamp: foA240Text_(
+      positionRiskMetadata &&
+      positionRiskMetadata.timestamp
+    ),
+    certificationTimestamp: foA240Text_(
+      certificationMetadata &&
+      certificationMetadata.timestamp
+    ),
+    priorReportId: foA240Text_(
+      priorBaseline &&
+      priorBaseline.priorReportId
+    )
+  };
+
+  if (
+    !Number.isFinite(reportTime) ||
+    !Number.isFinite(weekEndingTime)
+  ) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Weekly report timestamp or week-ending date is invalid.';
+    return result;
+  }
+
+  if (weekEndingTime > reportTime) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Week ending occurs after the report generation timestamp.';
+    return result;
+  }
+
+  const sourceMetadata = [
+    {
+      name: 'Return Attribution Summary A232',
+      timestamp: result.attributionTimestamp,
+      platformVersion: foA240Text_(
+        returnMetrics && returnMetrics.platformVersion
+      ),
+      baseline: foA240Text_(
+        returnMetrics && returnMetrics.baseline
+      ),
+      required: true
+    },
+    {
+      name: 'Attribution Coverage Summary A2311',
+      timestamp: result.coverageTimestamp,
+      platformVersion: foA240Text_(
+        coverageMetrics && coverageMetrics.platformVersion
+      ),
+      baseline: foA240Text_(
+        coverageMetrics && coverageMetrics.baseline
+      ),
+      required: true
+    },
+    {
+      name: 'Executive Decision State A233',
+      timestamp: result.decisionTimestamp,
+      platformVersion: foA240Text_(
+        state && state['Platform Version']
+      ),
+      baseline: foA240Text_(
+        state && state.Baseline
+      ),
+      required: true
+    },
+    {
+      name: 'Position Risk',
+      timestamp: result.positionRiskTimestamp,
+      platformVersion: foA240Text_(
+        positionRiskMetadata &&
+        positionRiskMetadata.platformVersion
+      ),
+      baseline: foA240Text_(
+        positionRiskMetadata &&
+        positionRiskMetadata.baseline
+      ),
+      required: false
+    },
+    {
+      name: 'Production Certification',
+      timestamp: result.certificationTimestamp,
+      platformVersion: foA240Text_(
+        certificationMetadata &&
+        certificationMetadata.platformVersion
+      ),
+      baseline: foA240Text_(
+        certificationMetadata &&
+        certificationMetadata.baseline
+      ),
+      required: false
+    }
+  ];
+
+  const missingRequired = [];
+  const missingOptional = [];
+  const futureSources = [];
+  const incompatibleMetadata = [];
+
+  sourceMetadata.forEach(function(source) {
+    const timestamp = foA240Text_(source.timestamp);
+
+    if (!timestamp) {
+      if (source.required) {
+        missingRequired.push(source.name);
+      } else {
+        missingOptional.push(source.name);
+      }
+    } else {
+      const sourceTime = foA240DateTime_(timestamp);
+
+      if (
+        !Number.isFinite(sourceTime) ||
+        sourceTime > reportTime
+      ) {
+        futureSources.push(source.name);
+      }
+    }
+
+    if (
+      runtimeVersion &&
+      source.platformVersion &&
+      source.platformVersion !== runtimeVersion
+    ) {
+      incompatibleMetadata.push(
+        source.name + ' platform version'
+      );
+    }
+
+    if (
+      runtimeBaseline &&
+      source.baseline &&
+      source.baseline !== runtimeBaseline
+    ) {
+      incompatibleMetadata.push(
+        source.name + ' baseline'
+      );
+    }
+  });
+
+  if (futureSources.length) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Evidence timestamps are invalid or occur after report generation: ' +
+      futureSources.join(', ') + '.';
+    return result;
+  }
+
+  if (incompatibleMetadata.length) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Reporting-period evidence uses incompatible runtime metadata: ' +
+      incompatibleMetadata.join(', ') + '.';
+    return result;
+  }
+
+  const attributionTime = foA240DateTime_(
+    result.attributionTimestamp
+  );
+
+  const coverageTime = foA240DateTime_(
+    result.coverageTimestamp
+  );
+
+  if (
+    Number.isFinite(attributionTime) &&
+    Number.isFinite(coverageTime) &&
+    Math.abs(attributionTime - coverageTime) >
+      24 * 60 * 60 * 1000
+  ) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Return Attribution and Attribution Coverage timestamps differ by more than 24 hours.';
+    return result;
+  }
+
+  if (
+    priorBaseline &&
+    priorBaseline.status === 'AVAILABLE'
+  ) {
+    const priorWeekEnding = foA240DateTime_(
+      priorBaseline.priorReport &&
+      priorBaseline.priorReport['Week Ending']
+    );
+
+    if (
+      !Number.isFinite(priorWeekEnding) ||
+      priorWeekEnding >= weekEndingTime
+    ) {
+      result.status = 'INCOMPATIBLE';
+      result.reason =
+        'The prior weekly baseline does not precede the current week ending.';
+      return result;
+    }
+  }
+
+  if (missingRequired.length) {
+    result.status = 'PARTIAL';
+    result.reason =
+      'Required reporting-period timestamps are unavailable: ' +
+      missingRequired.join(', ') +
+      '. Unsupported period conclusions must remain suppressed.';
+    return result;
+  }
+
+  if (
+    !result.valuationTimestamp ||
+    !result.latestPriceTimestamp ||
+    missingOptional.length
+  ) {
+    const partialReasons = [];
+
+    if (!result.valuationTimestamp) {
+      partialReasons.push('valuation timestamp');
+    }
+
+    if (!result.latestPriceTimestamp) {
+      partialReasons.push('latest-price timestamp');
+    }
+
+    missingOptional.forEach(function(name) {
+      partialReasons.push(name + ' timestamp');
+    });
+
+    result.status = 'PARTIAL';
+    result.reason =
+      'Governed reporting-period evidence is partial: ' +
+      partialReasons.join(', ') + '.';
+    return result;
+  }
+
+  result.status = 'ALIGNED';
+  result.reason =
+    'Governed evidence timestamps and runtime metadata are defensibly aligned to the Weekly Strategy Review.';
+  return result;
+}
+
 function foA240ResolveWeeklyComparisonEligibility_(
   returnMetrics,
   coverageMetrics
@@ -2232,19 +3184,37 @@ function foA240LatestMetricMap_(sheet) {
   const latest = foA240LatestRows_(sheet, 'Run ID');
   const map = {
     runId: latest.runId,
+    priorRunId: '',
     timestamp: '',
+    platformVersion: '',
+    baseline: '',
     metrics: {}
   };
+
   latest.rows.forEach(function(row) {
     const metric = foA240Text_(row.Metric);
+
+    map.priorRunId = map.priorRunId ||
+      foA240Text_(row['Prior Run ID']);
+
+    map.timestamp = map.timestamp ||
+      foA240Text_(row.Timestamp);
+
+    map.platformVersion = map.platformVersion ||
+      foA240Text_(row['Platform Version']);
+
+    map.baseline = map.baseline ||
+      foA240Text_(row.Baseline);
+
     if (!metric) return;
-    map.timestamp = map.timestamp || row.Timestamp || '';
+
     map.metrics[metric] = {
       value: row.Value,
       status: foA240Text_(row.Status),
       commentary: foA240Text_(row.Commentary)
     };
   });
+
   return map;
 }
 
