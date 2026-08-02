@@ -73,7 +73,18 @@ function foRunWeeklyCioReportA240(options) {
     dashboard,
     'WEEKLY_CIO_REPORT_ARCHIVE_A240'
   );
-  const priorArchive = foA240LatestArchive_(archiveSheet);
+  const baselineIntegrity = foA240ResolveProductionBaseline_(run);
+
+  const priorBaseline = foA240ResolvePriorWeeklyBaseline_(
+    archiveSheet,
+    run,
+    weekEnding
+  );
+
+  const priorArchive =
+    priorBaseline.status === 'AVAILABLE'
+      ? priorBaseline.priorReport
+      : {};
 
   const model = foA240BuildModel_(
     state,
@@ -100,9 +111,18 @@ function foRunWeeklyCioReportA240(options) {
     decisionRunId
   );
 
-  foAppendRowsA230(archiveSheet, [
-    foA240ArchiveRow_(model, validation, run)
-  ]);
+  const persistenceStatus = foA240CanPersistWeeklyReport_(
+    validation,
+    baselineIntegrity
+  )
+    ? 'PERSISTED'
+    : 'ANALYSIS ONLY';
+
+  if (persistenceStatus === 'PERSISTED') {
+    foAppendRowsA230(archiveSheet, [
+      foA240ArchiveRow_(model, validation, run)
+    ]);
+  }
 
   return {
     status: validation.failedControls ? 'FAIL' : 'PASS',
@@ -116,6 +136,12 @@ function foRunWeeklyCioReportA240(options) {
     actionCardCount: actionCards.length,
     conflictCount: conflicts.length,
     validation: validation,
+    persistenceStatus: persistenceStatus,
+    productionBaselineStatus: baselineIntegrity.status,
+    productionBaselineReason: baselineIntegrity.reason,
+    weeklyComparisonStatus: priorBaseline.status,
+    weeklyComparisonReason: priorBaseline.reason,
+    priorReportId: priorBaseline.priorReportId,
     releaseTarget: FO_A240_RELEASE_TARGET
   };
 }
@@ -1548,6 +1574,237 @@ function foA240SheetRows_(sheet) {
     return object;
   });
 }
+
+
+/**
+ * Verifies that runtime metadata agrees with FO_CONFIG.
+ * FO_CONFIG remains the sole production-version authority.
+ */
+function foA240ResolveProductionBaseline_(run) {
+  const runtimeVersion = foA240Text_(
+    run && run.platformVersion
+  );
+
+  const runtimeBaseline = foA240Text_(
+    run && run.baseline
+  );
+
+  const configAvailable =
+    typeof FO_CONFIG !== 'undefined' &&
+    FO_CONFIG !== null;
+
+  const configVersion = configAvailable
+    ? foA240Text_(FO_CONFIG.PLATFORM_VERSION)
+    : '';
+
+  const configBaseline = configAvailable
+    ? foA240Text_(FO_CONFIG.BASELINE)
+    : '';
+
+  if (!configAvailable || !configVersion) {
+    return {
+      status: 'UNVERIFIED',
+      reason: 'FO_CONFIG platform version is unavailable.',
+      runtimeVersion: runtimeVersion,
+      runtimeBaseline: runtimeBaseline,
+      configVersion: configVersion,
+      configBaseline: configBaseline
+    };
+  }
+
+  if (
+    runtimeVersion !== configVersion ||
+    (
+      configBaseline &&
+      runtimeBaseline !== configBaseline
+    )
+  ) {
+    return {
+      status: 'VERSION_MISMATCH',
+      reason:
+        'Runtime platform metadata does not match FO_CONFIG.',
+      runtimeVersion: runtimeVersion,
+      runtimeBaseline: runtimeBaseline,
+      configVersion: configVersion,
+      configBaseline: configBaseline
+    };
+  }
+
+  return {
+    status: 'VERIFIED',
+    reason: 'Runtime platform metadata matches FO_CONFIG.',
+    runtimeVersion: runtimeVersion,
+    runtimeBaseline: runtimeBaseline,
+    configVersion: configVersion,
+    configBaseline: configBaseline
+  };
+}
+
+
+/**
+ * Determines whether the generated report can become governed
+ * weekly archive evidence.
+ */
+function foA240CanPersistWeeklyReport_(
+  validation,
+  baselineIntegrity
+) {
+  const failedControls = Number(
+    validation && validation.failedControls
+  ) || 0;
+
+  return (
+    failedControls === 0 &&
+    baselineIntegrity &&
+    baselineIntegrity.status === 'VERIFIED'
+  );
+}
+
+
+/**
+ * Selects the newest compatible prior weekly archive.
+ * Incompatible records remain historical but cannot drive
+ * certified weekly comparisons.
+ */
+function foA240ResolvePriorWeeklyBaseline_(
+  sheet,
+  run,
+  currentWeekEnding
+) {
+  const rows = foA240SheetRows_(sheet);
+
+  if (!rows.length) {
+    return {
+      status: 'BASELINE_BUILDING',
+      reason: 'No prior persisted weekly review is available.',
+      priorReport: {},
+      priorReportId: ''
+    };
+  }
+
+  const currentVersion = foA240Text_(
+    run && run.platformVersion
+  );
+
+  const currentBaseline = foA240Text_(
+    run && run.baseline
+  );
+
+  const currentWeekTime = foA240DateTime_(
+    currentWeekEnding
+  );
+
+  let incompatibleReason =
+    'No compatible prior governed weekly baseline was found.';
+
+  for (
+    let index = rows.length - 1;
+    index >= 0;
+    index--
+  ) {
+    const row = rows[index];
+
+    const reportId = foA240Text_(
+      row['Report ID']
+    );
+
+    const validationStatus = foA240Text_(
+      row['Validation Status']
+    ).toUpperCase();
+
+    const platformVersion = foA240Text_(
+      row['Platform Version']
+    );
+
+    const baseline = foA240Text_(
+      row.Baseline
+    );
+
+    const priorWeekTime = foA240DateTime_(
+      row['Week Ending']
+    );
+
+    if (!reportId) {
+      incompatibleReason =
+        'Prior weekly archive row has no Report ID.';
+      continue;
+    }
+
+    const acceptedValidationStatuses = [
+      'PASS',
+      'PASS WITH OBSERVATIONS',
+      'CERTIFIED',
+      'CERTIFIED WITH OBSERVATIONS'
+    ];
+
+    if (
+      acceptedValidationStatuses.indexOf(
+        validationStatus
+      ) === -1
+    ) {
+      incompatibleReason =
+        'Prior weekly archive did not pass validation.';
+      continue;
+    }
+
+    if (platformVersion !== currentVersion) {
+      incompatibleReason =
+        'Prior weekly archive uses a different platform version.';
+      continue;
+    }
+
+    if (
+      currentBaseline &&
+      baseline !== currentBaseline
+    ) {
+      incompatibleReason =
+        'Prior weekly archive uses a different governed baseline.';
+      continue;
+    }
+
+    if (
+      !Number.isFinite(priorWeekTime) ||
+      !Number.isFinite(currentWeekTime) ||
+      priorWeekTime >= currentWeekTime
+    ) {
+      incompatibleReason =
+        'Prior weekly archive does not precede the current week.';
+      continue;
+    }
+
+    return {
+      status: 'AVAILABLE',
+      reason:
+        'Compatible prior governed weekly baseline located.',
+      priorReport: row,
+      priorReportId: reportId
+    };
+  }
+
+  return {
+    status: 'INCOMPATIBLE',
+    reason: incompatibleReason,
+    priorReport: {},
+    priorReportId: ''
+  };
+}
+
+
+/**
+ * Normalizes Sheets Date objects and date-like values.
+ */
+function foA240DateTime_(value) {
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const parsed = new Date(value).getTime();
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : NaN;
+}
+
 
 function foA240LatestArchive_(sheet) {
   const rows = foA240SheetRows_(sheet);

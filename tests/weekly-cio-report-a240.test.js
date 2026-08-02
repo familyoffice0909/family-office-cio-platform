@@ -84,3 +84,87 @@ describe('Wave A2.4.0 static integration', () => {
     expect(source).toContain('return Number(value).toFixed(2);');
   });
 });
+
+describe('R3 D1 persistence, baseline, and comparison integrity', () => {
+  test('weekly runtime verifies FO_CONFIG before persistence', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ResolveProductionBaseline_('
+    );
+
+    expect(source).toContain(
+      'FO_CONFIG.PLATFORM_VERSION'
+    );
+
+    expect(source).toContain(
+      'FO_CONFIG.BASELINE'
+    );
+
+    expect(source).toContain(
+      "status: 'VERSION_MISMATCH'"
+    );
+  });
+
+  test('weekly archive persistence is validation gated', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240CanPersistWeeklyReport_('
+    );
+
+    expect(source).toContain(
+      "persistenceStatus === 'PERSISTED'"
+    );
+
+    expect(source).toContain(
+      'persistenceStatus: persistenceStatus'
+    );
+  });
+
+  test(
+    'prior weekly comparison requires compatible persisted evidence',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'function foA240ResolvePriorWeeklyBaseline_('
+      );
+
+      expect(source).toContain(
+        "status: 'BASELINE_BUILDING'"
+      );
+
+      expect(source).toContain(
+        "status: 'INCOMPATIBLE'"
+      );
+
+      expect(source).toContain(
+        "status: 'AVAILABLE'"
+      );
+
+      expect(source).toContain(
+        "priorBaseline.status === 'AVAILABLE'"
+      );
+    }
+  );
+
+  test(
+    'missing prior evidence is not treated as unchanged',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'weeklyComparisonStatus: priorBaseline.status'
+      );
+
+      expect(source).toContain(
+        'weeklyComparisonReason: priorBaseline.reason'
+      );
+
+      expect(source).toContain(
+        'priorReportId: priorBaseline.priorReportId'
+      );
+    }
+  );
+});
