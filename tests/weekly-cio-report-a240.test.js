@@ -168,3 +168,92 @@ describe('R3 D1 persistence, baseline, and comparison integrity', () => {
     }
   );
 });
+
+describe('R3 D1-C2B weekly comparison eligibility governance', () => {
+  test('reuses governed attribution and coverage metric maps', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ResolveWeeklyComparisonEligibility_('
+    );
+
+    expect(source).toContain(
+      'Return Attribution Summary A232'
+    );
+
+    expect(source).toContain(
+      'Attribution Coverage Summary A2311'
+    );
+
+    expect(source).toContain(
+      'foA240LatestMetricMap_'
+    );
+  });
+
+  test('suppresses missing or insufficient comparison evidence', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "status: 'SUPPRESSED'"
+    );
+
+    expect(source).toContain(
+      'Return Attribution Summary A232 has no governed evidence.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution coverage is below the governed threshold.'
+    );
+
+    expect(source).toContain(
+      'Valuation timestamp is unavailable.'
+    );
+
+    expect(source).toContain(
+      'Latest supported market-price timestamp is unavailable.'
+    );
+  });
+
+  test('classifies mismatched metric lineage as incompatible', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "status: 'INCOMPATIBLE'"
+    );
+
+    expect(source).toContain(
+      'Return-attribution and coverage evidence use different Run IDs.'
+    );
+  });
+
+  test(
+    'allows weekly comparison only when governed evidence is eligible',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        "weeklyComparisonEligibility.status === 'ELIGIBLE'"
+      );
+
+      expect(source).toContain(
+        "'Weekly Comparison Eligibility'"
+      );
+
+      expect(source).toContain(
+        'comparisonEligibility: comparisonEligibility.status'
+      );
+    }
+  );
+
+  test('does not introduce a new snapshot implementation', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).not.toContain(
+      'function foA240CreateBeginningSnapshot_'
+    );
+
+    expect(source).not.toContain(
+      'function foA240CreateEndingSnapshot_'
+    );
+  });
+});

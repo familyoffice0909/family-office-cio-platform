@@ -62,6 +62,12 @@ function foRunWeeklyCioReportA240(options) {
       FO_SHEETS.ATTRIBUTION_COVERAGE_SUMMARY_A2311
     )
   );
+
+  const comparisonEligibility =
+    foA240ResolveWeeklyComparisonEligibility_(
+      returnMetrics,
+      coverageMetrics
+    );
   const certification = foA240LatestCertification_(dashboard);
   const positionRisk = foA240PositionRiskMap_(dashboard);
 
@@ -142,6 +148,13 @@ function foRunWeeklyCioReportA240(options) {
     weeklyComparisonStatus: priorBaseline.status,
     weeklyComparisonReason: priorBaseline.reason,
     priorReportId: priorBaseline.priorReportId,
+    comparisonEligibility: comparisonEligibility.status,
+    comparisonEligibilityReason: comparisonEligibility.reason,
+    comparisonCoverage: comparisonEligibility.coverage,
+    valuationTimestamp:
+      comparisonEligibility.valuationTimestamp,
+    latestPriceTimestamp:
+      comparisonEligibility.latestPriceTimestamp,
     releaseTarget: FO_A240_RELEASE_TARGET
   };
 }
@@ -161,6 +174,12 @@ function foA240BuildModel_(
   weekEnding,
   run
 ) {
+  const weeklyComparisonEligibility =
+    foA240ResolveWeeklyComparisonEligibility_(
+      returnMetrics,
+      coverageMetrics
+    );
+
   const portfolioPosture = foA240Text_(state['Portfolio Posture']);
   const executionStatus = foA240Text_(state['Execution Status']);
   const riskLevel = foA240Text_(state['Portfolio Risk Level']);
@@ -431,8 +450,7 @@ function foA240BuildModel_(
     'Portfolio Price Return %'
   );
   const reportableReturn =
-    returnCoverage >= FO_A240_RETURN_COVERAGE_THRESHOLD &&
-    foA240IsNumeric_(rawReturn);
+    weeklyComparisonEligibility.status === 'ELIGIBLE';
 
   add(
     'PERIOD PERFORMANCE',
@@ -539,6 +557,27 @@ function foA240BuildModel_(
     priceFreshness >= 0.80 ? 'READY' : 'BLOCKED',
     'Fresh decision inputs are required before an investment action can become executable.',
     'Executive Decision State A233'
+  );
+
+  add(
+    'DATA READINESS',
+    weeklyComparisonEligibility.status === 'ELIGIBLE'
+      ? 'NORMAL'
+      : weeklyComparisonEligibility.status === 'INCOMPATIBLE'
+        ? 'CRITICAL'
+        : 'HIGH',
+    'Weekly Comparison Eligibility',
+    weeklyComparisonEligibility.status,
+    '',
+    '',
+    weeklyComparisonEligibility.status === 'ELIGIBLE'
+      ? 'READY'
+      : 'SUPPRESSED',
+    weeklyComparisonEligibility.reason,
+    foA240MetricSource_(
+      'Return Attribution Summary A232 / Attribution Coverage Summary A2311',
+      returnMetrics
+    )
   );
 
   const sortedCards = actionCards.slice().sort(function(a, b) {
@@ -1504,6 +1543,279 @@ function foA240CleanNumericText_(text) {
     return Number(value).toFixed(2);
   });
 }
+
+
+/**
+ * Determines whether the Weekly Strategy Review may present governed
+ * comparison evidence from the existing attribution and coverage
+ * summaries.
+ *
+ * This helper does not calculate returns, create snapshots, or change
+ * valuation logic. It evaluates only the evidence already supplied by
+ * A232 and A2311.
+ */
+function foA240ResolveWeeklyComparisonEligibility_(
+  returnMetrics,
+  coverageMetrics
+) {
+  const returnRunId = foA240Text_(
+    returnMetrics && returnMetrics.runId
+  );
+
+  const coverageRunId = foA240Text_(
+    coverageMetrics && coverageMetrics.runId
+  );
+
+  const returnTimestamp = foA240Text_(
+    returnMetrics && returnMetrics.timestamp
+  );
+
+  const coverageTimestamp = foA240Text_(
+    coverageMetrics && coverageMetrics.timestamp
+  );
+
+  const coverageMetricNames = [
+    'Return Attribution Coverage %',
+    'Return Coverage %',
+    'Portfolio Return Coverage %',
+    'Comparable Return Coverage %'
+  ];
+
+  let coverageValue = null;
+
+  for (
+    let index = 0;
+    index < coverageMetricNames.length;
+    index++
+  ) {
+    const candidate = foA240MetricValue_(
+      coverageMetrics,
+      coverageMetricNames[index]
+    );
+
+    if (
+      candidate !== '' &&
+      candidate !== null &&
+      candidate !== undefined
+    ) {
+      coverageValue = foA240Number_(candidate);
+      break;
+    }
+  }
+
+  if (
+    coverageValue === null &&
+    coverageMetrics &&
+    coverageMetrics.metrics
+  ) {
+    const metricKeys = Object.keys(
+      coverageMetrics.metrics
+    );
+
+    for (
+      let index = 0;
+      index < metricKeys.length;
+      index++
+    ) {
+      const key = metricKeys[index];
+
+      if (
+        /return/i.test(key) &&
+        /coverage/i.test(key)
+      ) {
+        coverageValue = foA240Number_(
+          coverageMetrics.metrics[key].value
+        );
+        break;
+      }
+    }
+  }
+
+  const valuationTimestamp =
+    foA240FirstMetricValue_(
+      returnMetrics,
+      coverageMetrics,
+      [
+        'Valuation Timestamp',
+        'Portfolio Valuation Timestamp'
+      ]
+    ) ||
+    returnTimestamp ||
+    coverageTimestamp;
+
+  const latestPriceTimestamp =
+    foA240FirstMetricValue_(
+      returnMetrics,
+      coverageMetrics,
+      [
+        'Latest Price Timestamp',
+        'Market Price Timestamp',
+        'Price Timestamp'
+      ]
+    ) ||
+    returnTimestamp ||
+    coverageTimestamp;
+
+  if (
+    returnRunId &&
+    coverageRunId &&
+    returnRunId !== coverageRunId
+  ) {
+    return {
+      status: 'INCOMPATIBLE',
+      reason:
+        'Return-attribution and coverage evidence use different Run IDs.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (
+    !returnMetrics ||
+    !returnMetrics.metrics ||
+    Object.keys(returnMetrics.metrics).length === 0
+  ) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Return Attribution Summary A232 has no governed evidence.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (
+    !coverageMetrics ||
+    !coverageMetrics.metrics ||
+    Object.keys(coverageMetrics.metrics).length === 0
+  ) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Attribution Coverage Summary A2311 has no governed evidence.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (
+    coverageValue === null ||
+    !Number.isFinite(coverageValue)
+  ) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Return-attribution coverage is unavailable.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (
+    coverageValue < FO_A240_RETURN_COVERAGE_THRESHOLD
+  ) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Return-attribution coverage is below the governed threshold.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (!valuationTimestamp) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Valuation timestamp is unavailable.',
+      coverage: coverageValue,
+      valuationTimestamp: '',
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (!latestPriceTimestamp) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Latest supported market-price timestamp is unavailable.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: '',
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  return {
+    status: 'ELIGIBLE',
+    reason:
+      'Governed attribution and coverage evidence satisfy the weekly comparison gate.',
+    coverage: coverageValue,
+    valuationTimestamp: valuationTimestamp,
+    latestPriceTimestamp: latestPriceTimestamp,
+    returnRunId: returnRunId,
+    coverageRunId: coverageRunId
+  };
+}
+
+
+/**
+ * Returns the first non-empty governed metric value across the
+ * supplied metric maps and candidate metric names.
+ */
+function foA240FirstMetricValue_(
+  primaryMap,
+  secondaryMap,
+  metricNames
+) {
+  const maps = [primaryMap, secondaryMap];
+
+  for (let mapIndex = 0; mapIndex < maps.length; mapIndex++) {
+    const map = maps[mapIndex];
+
+    if (!map || !map.metrics) continue;
+
+    for (
+      let metricIndex = 0;
+      metricIndex < metricNames.length;
+      metricIndex++
+    ) {
+      const value = foA240MetricValue_(
+        map,
+        metricNames[metricIndex]
+      );
+
+      if (
+        value !== '' &&
+        value !== null &&
+        value !== undefined
+      ) {
+        return value;
+      }
+    }
+  }
+
+  return '';
+}
+
 
 function foA240LatestMetricMap_(sheet) {
   const latest = foA240LatestRows_(sheet, 'Run ID');
