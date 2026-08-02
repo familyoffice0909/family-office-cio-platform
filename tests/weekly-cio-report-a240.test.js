@@ -257,3 +257,132 @@ describe('R3 D1-C2B weekly comparison eligibility governance', () => {
     );
   });
 });
+
+describe('R3 D1-C3B decision evidence alignment governance', () => {
+  test('preserves the existing Position Risk map contract', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240PositionRiskMap_(dashboard)'
+    );
+
+    expect(source).toContain(
+      'return {exact: exact, tickerTotals: tickerTotals};'
+    );
+
+    expect(source).toContain(
+      'function foA240LatestPositionRiskMetadata_(dashboard)'
+    );
+  });
+
+  test('exposes governed Position Risk lineage metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "dashboard.getSheetByName(FO_SHEETS.POSITION_RISK)"
+    );
+
+    expect(source).toContain(
+      "source: 'Position Risk'"
+    );
+
+    expect(source).toContain(
+      'runId: foA240Text_(latest.runId)'
+    );
+
+    expect(source).toContain(
+      "platformVersion: foA240Text_(row['Platform Version'])"
+    );
+
+    expect(source).toContain(
+      'baseline: foA240Text_(row.Baseline)'
+    );
+  });
+
+  test('exposes governed Production Certification metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240LatestCertificationMetadata_(dashboard)'
+    );
+
+    expect(source).toContain(
+      'FO_SHEETS.PRODUCTION_CERTIFICATION'
+    );
+
+    expect(source).toContain(
+      "row['Certification Run ID']"
+    );
+
+    expect(source).toContain(
+      "source: 'Production Certification'"
+    );
+  });
+
+  test('classifies decision evidence as aligned compatible or incompatible',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'function foA240ValidateDecisionEvidenceAlignment_('
+      );
+
+      expect(source).toContain(
+        "result.status = 'ALIGNED'"
+      );
+
+      expect(source).toContain(
+        "result.status = 'COMPATIBLE'"
+      );
+
+      expect(source).toContain(
+        "result.status = 'INCOMPATIBLE'"
+      );
+
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage use different governed Run IDs.'
+      );
+    });
+
+  test('integrates decision evidence alignment into runtime report and validation',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'const decisionEvidenceAlignment ='
+      );
+
+      expect(source).toContain(
+        "'Decision Evidence Alignment'"
+      );
+
+      expect(source).toContain(
+        'decisionEvidenceAlignment:'
+      );
+
+      expect(source).toContain(
+        'decisionEvidenceReason:'
+      );
+
+      expect(source).toContain(
+        'Decision evidence alignment is compatible'
+      );
+    });
+
+  test('does not require every governed engine to share the A233 Run ID',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'uses a separate governed run namespace'
+      );
+
+      expect(source).toContain(
+        'uses a separate governed run namespace with compatible runtime metadata.'
+      );
+
+      expect(source).not.toContain(
+        'All governed engine Run IDs must equal the A233 Decision Run ID'
+      );
+    });
+});
