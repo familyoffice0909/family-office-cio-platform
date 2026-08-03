@@ -235,6 +235,27 @@ function foRunWeeklyCioReportA240(options) {
   };
 }
 
+
+/**
+ * Terminal-safe wrapper for clasp run-function.
+ * Preserves the governed weekly report implementation and returns JSON text.
+ */
+function foRunWeeklyCioReportA240Clasp() {
+  const result = foRunWeeklyCioReportA240();
+
+  return JSON.stringify(result, function(key, value) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (value === undefined) {
+      return null;
+    }
+
+    return value;
+  });
+}
+
 function foA240BuildModel_(
   state,
   actionCards,
@@ -2581,14 +2602,41 @@ function foA240ValidateDecisionEvidenceAlignment_(
     }
   );
 
+  const attributionVersion = foA240Text_(
+    returnMetrics && returnMetrics.platformVersion
+  );
+
+  const coverageVersion = foA240Text_(
+    coverageMetrics && coverageMetrics.platformVersion
+  );
+
+  const attributionBaseline = foA240Text_(
+    returnMetrics && returnMetrics.baseline
+  );
+
+  const coverageBaseline = foA240Text_(
+    coverageMetrics && coverageMetrics.baseline
+  );
+
   if (
-    result.attribution.runId &&
-    result.coverage.runId &&
-    result.attribution.runId !== result.coverage.runId
+    attributionVersion &&
+    coverageVersion &&
+    attributionVersion !== coverageVersion
   ) {
     result.status = 'INCOMPATIBLE';
     result.reason =
-      'Return Attribution and Attribution Coverage use different governed Run IDs.';
+      'Return Attribution and Attribution Coverage use different platform versions.';
+    return result;
+  }
+
+  if (
+    attributionBaseline &&
+    coverageBaseline &&
+    attributionBaseline !== coverageBaseline
+  ) {
+    result.status = 'INCOMPATIBLE';
+    result.reason =
+      'Return Attribution and Attribution Coverage use different governed baselines.';
     return result;
   }
 
@@ -3019,15 +3067,61 @@ function foA240ResolveWeeklyComparisonEligibility_(
     returnTimestamp ||
     coverageTimestamp;
 
+  const returnPlatformVersion = foA240Text_(
+    returnMetrics && returnMetrics.platformVersion
+  );
+
+  const coveragePlatformVersion = foA240Text_(
+    coverageMetrics && coverageMetrics.platformVersion
+  );
+
+  const returnBaseline = foA240Text_(
+    returnMetrics && returnMetrics.baseline
+  );
+
+  const coverageBaseline = foA240Text_(
+    coverageMetrics && coverageMetrics.baseline
+  );
+
+  if (!returnRunId || !coverageRunId) {
+    return {
+      status: 'SUPPRESSED',
+      reason:
+        'Return-attribution or coverage Run ID is unavailable.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
   if (
-    returnRunId &&
-    coverageRunId &&
-    returnRunId !== coverageRunId
+    returnPlatformVersion &&
+    coveragePlatformVersion &&
+    returnPlatformVersion !== coveragePlatformVersion
   ) {
     return {
       status: 'INCOMPATIBLE',
       reason:
-        'Return-attribution and coverage evidence use different Run IDs.',
+        'Return-attribution and coverage evidence use different platform versions.',
+      coverage: coverageValue,
+      valuationTimestamp: valuationTimestamp,
+      latestPriceTimestamp: latestPriceTimestamp,
+      returnRunId: returnRunId,
+      coverageRunId: coverageRunId
+    };
+  }
+
+  if (
+    returnBaseline &&
+    coverageBaseline &&
+    returnBaseline !== coverageBaseline
+  ) {
+    return {
+      status: 'INCOMPATIBLE',
+      reason:
+        'Return-attribution and coverage evidence use different governed baselines.',
       coverage: coverageValue,
       valuationTimestamp: valuationTimestamp,
       latestPriceTimestamp: latestPriceTimestamp,

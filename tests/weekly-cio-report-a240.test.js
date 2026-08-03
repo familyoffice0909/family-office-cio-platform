@@ -221,8 +221,16 @@ describe('R3 D1-C2B weekly comparison eligibility governance', () => {
       "status: 'INCOMPATIBLE'"
     );
 
-    expect(source).toContain(
+    expect(source).not.toContain(
       'Return-attribution and coverage evidence use different Run IDs.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution and coverage evidence use different platform versions.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution and coverage evidence use different governed baselines.'
     );
   });
 
@@ -339,8 +347,16 @@ describe('R3 D1-C3B decision evidence alignment governance', () => {
         "result.status = 'INCOMPATIBLE'"
       );
 
-      expect(source).toContain(
+      expect(source).not.toContain(
         'Return Attribution and Attribution Coverage use different governed Run IDs.'
+      );
+
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage use different platform versions.'
+      );
+
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage use different governed baselines.'
       );
     });
 
