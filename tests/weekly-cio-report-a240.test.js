@@ -84,3 +84,586 @@ describe('Wave A2.4.0 static integration', () => {
     expect(source).toContain('return Number(value).toFixed(2);');
   });
 });
+
+describe('R3 D1 persistence, baseline, and comparison integrity', () => {
+  test('weekly runtime verifies FO_CONFIG before persistence', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ResolveProductionBaseline_('
+    );
+
+    expect(source).toContain(
+      'FO_CONFIG.PLATFORM_VERSION'
+    );
+
+    expect(source).toContain(
+      'FO_CONFIG.BASELINE'
+    );
+
+    expect(source).toContain(
+      "status: 'VERSION_MISMATCH'"
+    );
+  });
+
+  test('weekly archive persistence is validation gated', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240CanPersistWeeklyReport_('
+    );
+
+    expect(source).toContain(
+      "persistenceStatus === 'PERSISTED'"
+    );
+
+    expect(source).toContain(
+      'persistenceStatus: persistenceStatus'
+    );
+  });
+
+  test(
+    'prior weekly comparison requires compatible persisted evidence',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'function foA240ResolvePriorWeeklyBaseline_('
+      );
+
+      expect(source).toContain(
+        "status: 'BASELINE_BUILDING'"
+      );
+
+      expect(source).toContain(
+        "status: 'INCOMPATIBLE'"
+      );
+
+      expect(source).toContain(
+        "status: 'AVAILABLE'"
+      );
+
+      expect(source).toContain(
+        "priorBaseline.status === 'AVAILABLE'"
+      );
+    }
+  );
+
+  test(
+    'missing prior evidence is not treated as unchanged',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'weeklyComparisonStatus: priorBaseline.status'
+      );
+
+      expect(source).toContain(
+        'weeklyComparisonReason: priorBaseline.reason'
+      );
+
+      expect(source).toContain(
+        'priorReportId: priorBaseline.priorReportId'
+      );
+    }
+  );
+});
+
+describe('R3 D1-C2B weekly comparison eligibility governance', () => {
+  test('reuses governed attribution and coverage metric maps', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ResolveWeeklyComparisonEligibility_('
+    );
+
+    expect(source).toContain(
+      'Return Attribution Summary A232'
+    );
+
+    expect(source).toContain(
+      'Attribution Coverage Summary A2311'
+    );
+
+    expect(source).toContain(
+      'foA240LatestMetricMap_'
+    );
+  });
+
+  test('suppresses missing or insufficient comparison evidence', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "status: 'SUPPRESSED'"
+    );
+
+    expect(source).toContain(
+      'Return Attribution Summary A232 has no governed evidence.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution coverage is below the governed threshold.'
+    );
+
+    expect(source).toContain(
+      'Valuation timestamp is unavailable.'
+    );
+
+    expect(source).toContain(
+      'Latest supported market-price timestamp is unavailable.'
+    );
+  });
+
+  test('classifies mismatched metric lineage as incompatible', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "status: 'INCOMPATIBLE'"
+    );
+
+    expect(source).not.toContain(
+      'Return-attribution and coverage evidence use different Run IDs.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution and coverage evidence use different platform versions.'
+    );
+
+    expect(source).toContain(
+      'Return-attribution and coverage evidence use different governed baselines.'
+    );
+  });
+
+  test(
+    'allows weekly comparison only when governed evidence is eligible',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        "weeklyComparisonEligibility.status === 'ELIGIBLE'"
+      );
+
+      expect(source).toContain(
+        "'Weekly Comparison Eligibility'"
+      );
+
+      expect(source).toContain(
+        'comparisonEligibility: comparisonEligibility.status'
+      );
+    }
+  );
+
+  test('does not introduce a new snapshot implementation', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).not.toContain(
+      'function foA240CreateBeginningSnapshot_'
+    );
+
+    expect(source).not.toContain(
+      'function foA240CreateEndingSnapshot_'
+    );
+  });
+});
+
+describe('R3 D1-C3B decision evidence alignment governance', () => {
+  test('preserves the existing Position Risk map contract', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240PositionRiskMap_(dashboard)'
+    );
+
+    expect(source).toContain(
+      'return {exact: exact, tickerTotals: tickerTotals};'
+    );
+
+    expect(source).toContain(
+      'function foA240LatestPositionRiskMetadata_(dashboard)'
+    );
+  });
+
+  test('exposes governed Position Risk lineage metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "dashboard.getSheetByName(FO_SHEETS.POSITION_RISK)"
+    );
+
+    expect(source).toContain(
+      "source: 'Position Risk'"
+    );
+
+    expect(source).toContain(
+      'runId: foA240Text_(latest.runId)'
+    );
+
+    expect(source).toContain(
+      "platformVersion: foA240Text_(row['Platform Version'])"
+    );
+
+    expect(source).toContain(
+      'baseline: foA240Text_(row.Baseline)'
+    );
+  });
+
+  test('exposes governed Production Certification metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240LatestCertificationMetadata_(dashboard)'
+    );
+
+    expect(source).toContain(
+      'FO_SHEETS.PRODUCTION_CERTIFICATION'
+    );
+
+    expect(source).toContain(
+      "row['Certification Run ID']"
+    );
+
+    expect(source).toContain(
+      "source: 'Production Certification'"
+    );
+  });
+
+  test('classifies decision evidence as aligned compatible or incompatible',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'function foA240ValidateDecisionEvidenceAlignment_('
+      );
+
+      expect(source).toContain(
+        "result.status = 'ALIGNED'"
+      );
+
+      expect(source).toContain(
+        "result.status = 'COMPATIBLE'"
+      );
+
+      expect(source).toContain(
+        "result.status = 'INCOMPATIBLE'"
+      );
+
+      expect(source).not.toContain(
+        'Return Attribution and Attribution Coverage use different governed Run IDs.'
+      );
+
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage use different platform versions.'
+      );
+
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage use different governed baselines.'
+      );
+    });
+
+  test('integrates decision evidence alignment into runtime report and validation',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'const decisionEvidenceAlignment ='
+      );
+
+      expect(source).toContain(
+        "'Decision Evidence Alignment'"
+      );
+
+      expect(source).toContain(
+        'decisionEvidenceAlignment:'
+      );
+
+      expect(source).toContain(
+        'decisionEvidenceReason:'
+      );
+
+      expect(source).toContain(
+        'Decision evidence alignment is compatible'
+      );
+    });
+
+  test('does not require every governed engine to share the A233 Run ID',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'uses a separate governed run namespace'
+      );
+
+      expect(source).toContain(
+        'uses a separate governed run namespace with compatible runtime metadata.'
+      );
+
+      expect(source).not.toContain(
+        'All governed engine Run IDs must equal the A233 Decision Run ID'
+      );
+    });
+});
+
+describe('R3 D1-C4 reporting-period alignment governance', () => {
+  test('preserves governed metric-map period metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "priorRunId: ''"
+    );
+    expect(source).toContain(
+      "platformVersion: ''"
+    );
+    expect(source).toContain(
+      "baseline: ''"
+    );
+    expect(source).toContain(
+      "row['Prior Run ID']"
+    );
+  });
+
+  test('implements the reporting-period alignment helper', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ValidateReportingPeriodAlignment_('
+    );
+    expect(source).toContain(
+      "result.status = 'ALIGNED'"
+    );
+    expect(source).toContain(
+      "result.status = 'PARTIAL'"
+    );
+    expect(source).toContain(
+      "result.status = 'INCOMPATIBLE'"
+    );
+  });
+
+  test('rejects evidence that occurs after report generation', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'sourceTime > reportTime'
+    );
+    expect(source).toContain(
+      'Evidence timestamps are invalid or occur after report generation:'
+    );
+  });
+
+  test('rejects attribution and coverage timestamps separated by over 24 hours',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'Math.abs(attributionTime - coverageTime) >'
+      );
+      expect(source).toContain(
+        'Return Attribution and Attribution Coverage timestamps differ by more than 24 hours.'
+      );
+    });
+
+  test('does not invent missing reporting-period evidence', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'Unsupported period conclusions must remain suppressed.'
+    );
+    expect(source).toContain(
+      'Governed reporting-period evidence is partial:'
+    );
+    expect(source).not.toContain(
+      'Holdings Timestamp: new Date()'
+    );
+  });
+
+  test('integrates reporting-period alignment into runtime and report output',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'const reportingPeriodAlignment ='
+      );
+      expect(source).toContain(
+        "'Reporting Period Alignment'"
+      );
+      expect(source).toContain(
+        'reportingPeriodReason:'
+      );
+      expect(source).toContain(
+        'Reporting-period alignment is governable'
+      );
+    });
+});
+
+describe('R3 D1-C5 concentration authority governance', () => {
+  test('implements position-level concentration authority reconciliation',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'function foA240ResolveConcentrationAuthority_('
+      );
+      expect(source).toContain(
+        "basis: 'LARGEST VALUED TICKER/ACCOUNT POSITION'"
+      );
+      expect(source).toContain(
+        "result.status = 'CERTIFIED'"
+      );
+      expect(source).toContain(
+        "result.status = 'PARTIAL'"
+      );
+      expect(source).toContain(
+        "result.status = 'NOT CERTIFIED'"
+      );
+    });
+
+  test('does not use ticker totals as largest-position authority', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    const controlStart = source.indexOf(
+      'Largest position percentage matches governed position authority'
+    );
+
+    expect(controlStart).toBeGreaterThanOrEqual(0);
+
+    const controlBlock = source.slice(
+      controlStart,
+      controlStart + 2200
+    );
+
+    expect(controlBlock).not.toContain(
+      'weights.tickerTotals'
+    );
+    expect(controlBlock).toContain(
+      'foA240ResolveConcentrationAuthority_('
+    );
+  });
+
+  test('preserves ticker totals only for display fallback', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'tickerTotals[ticker] = (tickerTotals[ticker] || 0) + weight;'
+    );
+    expect(source).toContain(
+      'function foA240ResolvePositionWeight_('
+    );
+  });
+
+  test('classifies incomplete valuation coverage as partial', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'if (freshnessCoverage < 1)'
+    );
+    expect(source).toContain(
+      'incomplete price freshness means full-portfolio concentration is not certified.'
+    );
+  });
+
+  test('integrates concentration authority into runtime and report output',
+    () => {
+      const source = read('WeeklyCioReportA240.js');
+
+      expect(source).toContain(
+        'const concentrationAuthority ='
+      );
+      expect(source).toContain(
+        "'Concentration Authority'"
+      );
+      expect(source).toContain(
+        'concentrationAuthorityReason:'
+      );
+      expect(source).toContain(
+        'concentrationAuthorityEvidence:'
+      );
+    });
+
+  test('adds a blocking concentration governance control', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'Concentration authority is certified or controlled'
+    );
+    expect(source).toContain(
+      "if (status === 'NOT CERTIFIED')"
+    );
+  });
+
+  test('documents the valued-position concentration basis', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'Largest valued position reconciles'
+    );
+    expect(source).toContain(
+      'A233 largest-position authority reconciles to one governed Position Risk ticker/account row.'
+    );
+  });
+});
+
+
+describe('R3 D1-C6 trend authority governance', () => {
+
+  test('contains governed trend authority helper', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'function foA240ValidateTrendAuthority_('
+    );
+  });
+
+  test('documents trend versus trajectory distinction', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'Trend and Overall Trajectory represent different governed concepts'
+    );
+  });
+
+  test('runtime resolves trend authority once', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'const trendAuthority ='
+    );
+  });
+
+  test('runtime exposes trend authority metadata', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain('trendAuthority:');
+    expect(source).toContain('trendAuthorityReason:');
+    expect(source).toContain('trendAuthorityEvidence:');
+  });
+
+  test('governance row exists', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "'Trend Authority'"
+    );
+  });
+
+  test('supports certified partial and blocked states', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "result.status = 'CERTIFIED'"
+    );
+    expect(source).toContain(
+      "result.status = 'PARTIAL'"
+    );
+    expect(source).toContain(
+      "result.status = 'NOT CERTIFIED'"
+    );
+  });
+
+  test('does not calculate trend analytics locally', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'The helper does not calculate trends'
+    );
+  });
+
+});
