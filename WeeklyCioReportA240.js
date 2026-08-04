@@ -632,9 +632,11 @@ function foA240BuildModel_(
       'DATA READINESS',
       foA240ReadinessPriority_(item.Status),
       control,
-      control.indexOf('%') >= 0
-        ? foA240PercentText_(item.Value)
-        : item.Value,
+      control === 'Recognized Positions'
+        ? String(foA240Number_(item.Value))
+        : control.indexOf('%') >= 0
+          ? foA240PercentText_(item.Value)
+          : item.Value,
       '',
       '',
       foA240Text_(item.Status),
