@@ -667,3 +667,26 @@ describe('R3 D1-C6 trend authority governance', () => {
   });
 
 });
+
+describe('R4.1 D3 Weekly Strategy Review Runtime Context integration', () => {
+  test('establishes Runtime Context at the Weekly entry point', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'WeeklyCioReportA240.js'),
+      'utf8'
+    );
+
+    const entryIndex = source.indexOf(
+      'function foRunWeeklyCioReportA240'
+    );
+    const runtimeIndex = source.indexOf(
+      'foRuntimeContextGet_();',
+      entryIndex
+    );
+
+    expect(entryIndex).toBeGreaterThanOrEqual(0);
+    expect(runtimeIndex).toBeGreaterThan(entryIndex);
+  });
+});

@@ -4,6 +4,7 @@
  */
 
 function foRunProductionCertification() {
+  foRuntimeContextGet_();
   return foWithRuntimeLock_(
     'Run Production Certification',
     function() {
