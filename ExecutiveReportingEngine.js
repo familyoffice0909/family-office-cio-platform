@@ -33,6 +33,7 @@ const FO_MORNING_BRIEF_REQUIRED_LEDGER_SHEETS = [
 ];
 
 function foRunExecutiveReportEngine() {
+  foRuntimeContextGet_();
   const module = 'ExecutiveReportingEngine';
 
   try {

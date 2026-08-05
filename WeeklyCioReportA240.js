@@ -10,6 +10,7 @@ const FO_A240_RETURN_COVERAGE_THRESHOLD = 0.80;
 const FO_A2401_ZERO_TOLERANCE = 0.0000001;
 
 function foRunWeeklyCioReportA240(options) {
+  foRuntimeContextGet_();
   const settings = options || {};
   const dashboard = foDashboard_();
 
