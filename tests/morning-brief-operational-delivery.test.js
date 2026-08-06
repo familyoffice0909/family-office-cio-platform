@@ -156,3 +156,31 @@ describe('Morning Brief Certification and Valuation Evidence Integrity', () => {
     );
   });
 });
+
+describe('R4.1 D2 Morning Brief Runtime Context integration', () => {
+  test('establishes Runtime Context before Morning Brief preflight', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'ExecutiveReportingEngine.js'),
+      'utf8'
+    );
+
+    const entryIndex = source.indexOf(
+      'function foRunExecutiveReportEngine'
+    );
+    const runtimeIndex = source.indexOf(
+      'foRuntimeContextGet_();',
+      entryIndex
+    );
+    const preflightIndex = source.indexOf(
+      'foRunMorningBriefPreflight_',
+      entryIndex
+    );
+
+    expect(entryIndex).toBeGreaterThanOrEqual(0);
+    expect(runtimeIndex).toBeGreaterThan(entryIndex);
+    expect(preflightIndex).toBeGreaterThan(runtimeIndex);
+  });
+});

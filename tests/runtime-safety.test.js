@@ -25,6 +25,10 @@ function createRuntime(options = {}) {
     releaseLock: jest.fn()
   };
   const context = vm.createContext({
+    FO_CONFIG: options.FO_CONFIG || {
+      PLATFORM_VERSION: 'v3.2.10',
+      BASELINE: 'CB-002'
+    },
     PropertiesService: {
       getScriptProperties: jest.fn(() => scriptProperties)
     },
@@ -334,6 +338,7 @@ describe('Morning Brief end-to-end smoke test', () => {
     });
 
     vm.runInContext(read('ExecutiveDashboardEngine.js'), context);
+    vm.runInContext(read('RuntimeLockService.js'), context);
     vm.runInContext(read('ExecutiveReportingEngine.js'), context);
 
     context.foInfo_ = jest.fn();
@@ -435,6 +440,67 @@ describe('Morning Brief end-to-end smoke test', () => {
   });
 });
 
+describe('R4.1 runtime context lifecycle', () => {
+  test('creates one immutable Runtime Context', () => {
+    const { context } = createRuntime();
+
+    const runtimeContext = context.foRuntimeContextGet_();
+
+    expect(runtimeContext.runtimeId).toMatch(/^RUNTIME-\d+-\d+$/);
+    expect(runtimeContext.executionMode).toBe('PRODUCTION_RUNTIME');
+    expect(runtimeContext.authorityLevel).toBe('FULL');
+    expect(runtimeContext.platformVersion).toBe('v3.2.10');
+    expect(runtimeContext.startedAt).toBeTruthy();
+    expect(Object.isFrozen(runtimeContext)).toBe(true);
+  });
+
+  test('returns the same Runtime Context to repeated consumers', () => {
+    const { context } = createRuntime();
+
+    const first = context.foRuntimeContextGet_();
+    const second = context.foRuntimeContextGet_();
+
+    expect(second).toBe(first);
+  });
+
+  test('prevents mutation of the Runtime Context', () => {
+    const { context } = createRuntime();
+
+    const runtimeContext = context.foRuntimeContextGet_();
+
+    expect(function() {
+      runtimeContext.executionMode = 'ANALYSIS_ONLY';
+    }).toThrow();
+
+    expect(runtimeContext.executionMode).toBe('PRODUCTION_RUNTIME');
+  });
+
+  test('reset creates a new Runtime Context for tests', () => {
+    const { context } = createRuntime();
+
+    const first = context.foRuntimeContextGet_();
+
+    context.foRuntimeContextReset_();
+
+    const second = context.foRuntimeContextGet_();
+
+    expect(second).not.toBe(first);
+    expect(second.runtimeId).not.toBe(first.runtimeId);
+  });
+
+  test('reads the platform version from FO_CONFIG', () => {
+    const { context } = createRuntime({
+      FO_CONFIG: {
+        PLATFORM_VERSION: 'v-test-runtime-context',
+        BASELINE: 'TEST'
+      }
+    });
+
+    expect(context.foRuntimeContextGet_().platformVersion)
+      .toBe('v-test-runtime-context');
+  });
+});
+
 describe('Wave R1.3.0.2 runtime locking', () => {
   test('blocks protected helpers when no runtime lock is held', () => {
     const { context } = createRuntime();
@@ -528,5 +594,28 @@ describe('Wave R1.3.0.2 protected surface', () => {
     expect(read('SpreadsheetService.js')).not.toMatch(
       /SpreadsheetApp\s*\.\s*openByUrl\s*\(/
     );
+  });
+});
+
+describe('R4.1 D4 Production Certification Runtime Context integration', () => {
+  test('establishes Runtime Context before production certification work', () => {
+    const fs = require('fs');
+    const path = require('path');
+
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'ProductionCertificationEngine.js'),
+      'utf8'
+    );
+
+    const entryIndex = source.indexOf(
+      'function foRunProductionCertification'
+    );
+    const runtimeIndex = source.indexOf(
+      'foRuntimeContextGet_();',
+      entryIndex
+    );
+
+    expect(entryIndex).toBeGreaterThanOrEqual(0);
+    expect(runtimeIndex).toBeGreaterThan(entryIndex);
   });
 });
