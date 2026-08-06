@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.2.9',
-  RELEASE_NAME: 'Morning Brief Certification',
+  PLATFORM_VERSION: 'v3.2.12',
+  RELEASE_NAME: 'R5 Market Intelligence and Data Quality Certification',
 
   BASELINE: 'CB-002',
   BUILD: '2026.08.01.v329-release',
@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.2.9',
+  ENGINE_VERSION: 'v3.2.12',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
