@@ -55,6 +55,22 @@ function foRunWeeklyCioReportA240(options) {
     'Run ID',
     decisionRunId
   );
+  const readinessMetrics = {
+    runId: decisionRunId,
+    metrics: {}
+  };
+
+  readiness.forEach(function(row) {
+    const metric = foA240Text_(row.Control);
+    if (!metric) return;
+
+    readinessMetrics.metrics[metric] = {
+      value: row.Value,
+      status: foA240Text_(row.Status),
+      commentary: foA240Text_(row.Commentary)
+    };
+  });
+
   const returnMetrics = foA240LatestMetricMap_(
     dashboard.getSheetByName(FO_SHEETS.RETURN_ATTRIBUTION_SUMMARY_A232)
   );
@@ -136,9 +152,23 @@ function foRunWeeklyCioReportA240(options) {
       positionRiskMetadata
     );
 
+  const concentrationTrend =
+    foA240ReadConcentrationTrend_(
+      dashboard,
+      run.platformVersion,
+      run.baseline
+    );
+
   const trendAuthority =
     foA240ValidateTrendAuthority_(
       actionCards
+    );
+
+  const decisionHistoryIndex =
+    foLoadDecisionHistoryIndex_(
+      dashboard.getSheetByName(
+        FO_SHEETS.INVESTMENT_DECISION_HISTORY
+      )
     );
 
   const model = foA240BuildModel_(
@@ -153,7 +183,10 @@ function foRunWeeklyCioReportA240(options) {
     decisionEvidenceAlignment,
     reportingPeriodAlignment,
     concentrationAuthority,
+    concentrationTrend,
     trendAuthority,
+    readinessMetrics,
+    decisionHistoryIndex,
     priorArchive,
     reportId,
     decisionRunId,
@@ -241,6 +274,203 @@ function foRunWeeklyCioReportA240(options) {
  * Terminal-safe wrapper for clasp run-function.
  * Preserves the governed weekly report implementation and returns JSON text.
  */
+
+/**
+ * R7.7.C — Governed Weekly Retrieval API.
+ *
+ * Retrieves the newest persisted Weekly CIO report using the archive as
+ * report-identity authority, then independently verifies report rows and
+ * validation lineage before declaring the report deliverable.
+ *
+ * This function never reconstructs a report.
+ */
+function foGetLatestGovernedWeeklyReportA240() {
+  const dashboard = foDashboard_();
+
+  const reportSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_A240
+  );
+  const archiveSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_ARCHIVE_A240
+  );
+  const validationSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_VALIDATION_A240
+  );
+
+  if (!reportSheet || !archiveSheet || !validationSheet) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'DATA_ACCESS_FAILURE',
+      deliverable: false,
+      reason: 'One or more governed Weekly A240 worksheets are unavailable.'
+    };
+  }
+
+  const archiveRows = foA240SheetRows_(archiveSheet);
+
+  if (!archiveRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'PERSISTENCE_FAILURE',
+      deliverable: false,
+      reason: 'No persisted Weekly CIO archive record is available.'
+    };
+  }
+
+  // Archive is append-only; newest persisted archive record is authoritative.
+  const archive = archiveRows[archiveRows.length - 1];
+
+  const reportId = String(archive['Report ID'] || '').trim();
+  const decisionRunId = String(archive['Decision Run ID'] || '').trim();
+  const archiveValidationStatus = String(
+    archive['Validation Status'] || ''
+  ).trim().toUpperCase();
+
+  if (!reportId || !decisionRunId) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Latest Weekly archive record lacks Report ID or Decision Run ID.',
+      archive: archive
+    };
+  }
+
+  const reportRows = foA240SheetRows_(reportSheet).filter(function(row) {
+    return String(row['Report ID'] || '').trim() === reportId &&
+      String(row['Decision Run ID'] || '').trim() === decisionRunId;
+  });
+
+  if (!reportRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'PERSISTENCE_FAILURE',
+      deliverable: false,
+      reason: 'Persisted Weekly report rows were not found for the latest archive identity.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive
+    };
+  }
+
+  const validationRows = foA240SheetRows_(validationSheet).filter(function(row) {
+    return String(row['Report ID'] || '').trim() === reportId &&
+      String(row['Decision Run ID'] || '').trim() === decisionRunId;
+  });
+
+  if (!validationRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'VALIDATION_FAILURE',
+      deliverable: false,
+      reason: 'No persisted Weekly validation lineage matches the latest archived report.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive,
+      rows: reportRows
+    };
+  }
+
+  const validationRunIds = Array.from(
+    new Set(validationRows.map(function(row) {
+      return String(row['Validation Run ID'] || '').trim();
+    }).filter(Boolean))
+  );
+
+  if (validationRunIds.length !== 1) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Weekly validation lineage resolves to multiple Validation Run IDs.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      validationRunIds: validationRunIds,
+      archive: archive
+    };
+  }
+
+  const failedValidation = validationRows.filter(function(row) {
+    return String(row['Status'] || '').trim().toUpperCase() !== 'PASS';
+  });
+
+  if (archiveValidationStatus !== 'PASS' || failedValidation.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'VALIDATION_FAILURE',
+      deliverable: false,
+      reason: 'Latest persisted Weekly report has blocking or non-PASS validation evidence.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      validationRunId: validationRunIds[0],
+      archiveValidationStatus: archiveValidationStatus,
+      failedValidation: failedValidation,
+      archive: archive,
+      rows: reportRows,
+      validation: validationRows
+    };
+  }
+
+  const reportLineageMismatch = reportRows.some(function(row) {
+    return String(row['Report ID'] || '').trim() !== reportId ||
+      String(row['Decision Run ID'] || '').trim() !== decisionRunId;
+  });
+
+  if (reportLineageMismatch) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Weekly report-row lineage does not match the latest archive identity.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive
+    };
+  }
+
+  return {
+    status: 'PASS',
+    deliveryStatus: 'DELIVERABLE',
+    deliverable: true,
+
+    reportId: reportId,
+    decisionRunId: decisionRunId,
+    validationRunId: validationRunIds[0],
+
+    validationStatus: 'PASS',
+    platformVersion: archive['Platform Version'] || '',
+    baseline: archive['Baseline'] || '',
+
+    archive: archive,
+    rows: reportRows,
+    validation: validationRows,
+
+    reportRowCount: reportRows.length,
+    validationControlCount: validationRows.length,
+
+    reason: 'Latest persisted Weekly CIO report passed governed retrieval and lineage verification.'
+  };
+}
+
+function foGetLatestGovernedWeeklyReportA240Clasp() {
+  const result = foGetLatestGovernedWeeklyReportA240();
+
+  return JSON.stringify({
+    status: result.status || '',
+    deliveryStatus: result.deliveryStatus || '',
+    deliverable: result.deliverable === true,
+    reportId: result.reportId || '',
+    decisionRunId: result.decisionRunId || '',
+    validationRunId: result.validationRunId || '',
+    validationStatus: result.validationStatus || '',
+    platformVersion: result.platformVersion || '',
+    baseline: result.baseline || '',
+    reportRowCount: Number(result.reportRowCount || 0),
+    validationControlCount: Number(result.validationControlCount || 0),
+    reason: result.reason || ''
+  });
+}
+
 function foRunWeeklyCioReportA240Clasp() {
   const result = foRunWeeklyCioReportA240();
 
@@ -269,7 +499,10 @@ function foA240BuildModel_(
   decisionEvidenceAlignment,
   reportingPeriodAlignment,
   concentrationAuthority,
+  concentrationTrend,
   trendAuthority,
+  readinessMetrics,
+  decisionHistoryIndex,
   priorArchive,
   reportId,
   decisionRunId,
@@ -607,13 +840,30 @@ function foA240BuildModel_(
   );
   const largestTicker = foA240Text_(state['Largest Position Ticker']);
   const largestPct = foA240Number_(state['Largest Position %']);
+
+  const largestPositionPrior =
+    concentrationTrend &&
+    concentrationTrend.status === 'AVAILABLE'
+      ? concentrationTrend.largestPosition.prior
+      : null;
+
+  const largestPositionDelta =
+    concentrationTrend &&
+    concentrationTrend.status === 'AVAILABLE'
+      ? concentrationTrend.largestPosition.delta
+      : null;
+
   add(
     'RISK',
     priority,
     'Largest Position',
     largestTicker + ' — ' + foA240PercentPointsText_(largestPct),
-    priorArchive['Largest Position Ticker'] || '',
-    '',
+    largestPositionPrior === null
+      ? ''
+      : foA240PercentPointsText_(largestPositionPrior),
+    largestPositionDelta === null
+      ? ''
+      : foA240PercentPointsText_(largestPositionDelta),
     largestPct >= 30 ? 'CRITICAL' : (largestPct >= 20 ? 'HIGH' : 'NORMAL'),
     largestTicker + ' represents ' + foA240PercentPointsText_(largestPct) +
       ' of portfolio value.',
@@ -691,7 +941,7 @@ function foA240BuildModel_(
     reportableReturn ? (returnStatus || 'AVAILABLE') : 'INSUFFICIENT COVERAGE',
     reportableReturn
       ? 'Latest consecutive-snapshot price return. This is not assumed to equal a full calendar-week return.'
-      : 'Return is suppressed because eligible return-attribution coverage is below 80% or the metric is unavailable.',
+      : 'Weekly portfolio return is not displayed because the governed snapshot comparison is not eligible or the return metric is unavailable.',
     foA240MetricSource_(
       'Return Attribution Summary A232',
       returnMetrics
@@ -773,8 +1023,12 @@ function foA240BuildModel_(
       priceFreshness
     ),
     priceFreshness >= 0.80 ? 'READY' : 'BLOCKED',
-    'Fresh decision inputs are required before an investment action can become executable.',
-    'Executive Decision State A233'
+    foA240MetricCommentary_(
+      readinessMetrics,
+      'Decision Price Freshness Coverage %',
+      'Fresh decision inputs are required before an investment action can become executable.'
+    ),
+    'Report Data Readiness A233'
   );
 
   add(
@@ -827,18 +1081,33 @@ function foA240BuildModel_(
     const invalidation = isPrimaryRiskDriver
       ? 'Risk-reduction requirement ends when concentration falls below policy limits.'
       : foA240CleanNumericText_(foA240Text_(card['Invalidation Condition']));
-    const hasPriorReport = Boolean(priorArchive && priorArchive['Report ID']);
+    const decisionKey = foDecisionKey_(ticker, account);
+    const priorDecision =
+      decisionHistoryIndex &&
+      decisionHistoryIndex.compatiblePrevious
+        ? decisionHistoryIndex.compatiblePrevious[decisionKey]
+        : null;
+
+    const currentRecommendation = foA240Text_(card.Recommendation);
+    const priorRecommendation = priorDecision
+      ? foA240Text_(priorDecision.recommendation)
+      : '';
+
+    const recommendationChange = priorRecommendation
+      ? (
+          currentRecommendation === priorRecommendation
+            ? 'UNCHANGED'
+            : 'CHANGED'
+        )
+      : 'BASELINE CREATED';
+
     add(
       section,
       isPrimaryRiskDriver ? 'CRITICAL' : actionPriority,
       foA240ActionLabel_(card),
       foA240Text_(card['Execution Status']) + ' | ' + controlledAction,
-      hasPriorReport
-        ? 'Confidence ' + foA240Number_(card['Prior Confidence'])
-        : 'NOT AVAILABLE',
-      hasPriorReport
-        ? foA240Number_(card['Confidence Delta'])
-        : 'BASELINE CREATED',
+      priorRecommendation || 'NOT AVAILABLE',
+      recommendationChange,
       foA240Text_(card['Price Freshness']) + ' | ' +
         foA240Text_(card.Trend),
       'Trigger: ' + trigger +
@@ -1525,6 +1794,8 @@ function foRunWeeklyCioReportValidationA240(
     result.controls.map(function(control) {
       return [
         validationRun.runId,
+        expectedReportId,
+        expectedDecisionRunId,
         validationRun.timestamp,
         control.category,
         control.control,
@@ -2127,10 +2398,17 @@ function foA240EnsureAdditiveSchema_(dashboard, key) {
 }
 
 function foA240ExecutiveSummary_(state, deploymentAuthorization) {
+  const freshness = foA240Number_(state['Price Freshness Coverage %']);
+  const freshnessReason = freshness < 0.80
+    ? ' Execution remains blocked because decision freshness is ' +
+      foA240PercentText_(state['Price Freshness Coverage %']) + '.'
+    : '';
+
   return (
     foA240Text_(state['Portfolio Posture']) + '. ' +
     'Capital deployment: ' + deploymentAuthorization + '. ' +
-    foA240Text_(state['Primary Action']) + ' ' +
+    foA240Text_(state['Primary Action']) +
+    freshnessReason + ' ' +
     'Portfolio risk is ' + foA240Text_(state['Portfolio Risk Level']) +
     ' at ' + foA240Number_(state['Risk Score']) + '. ' +
     'Decision freshness is ' +
@@ -3387,6 +3665,77 @@ function foA240SheetRows_(sheet) {
  * Verifies that runtime metadata agrees with FO_CONFIG.
  * FO_CONFIG remains the sole production-version authority.
  */
+
+function foA240ReadConcentrationTrend_(spreadsheet, platformVersion, baseline) {
+  const sheet = spreadsheet && spreadsheet.getSheetByName('Risk History');
+  const rows = foA240SheetRows_(sheet);
+
+  const currentVersion = foA240Text_(platformVersion);
+  const currentBaseline = foA240Text_(baseline);
+
+  const compatible = rows.filter(function(row) {
+    const rowVersion = foA240Text_(row['Platform Version']);
+    const rowBaseline = foA240Text_(row.Baseline);
+    const runId = foA240Text_(row['Run ID']);
+    const timestamp = foA240DateTime_(row.Timestamp);
+
+    if (!runId || !Number.isFinite(timestamp)) return false;
+    if (rowVersion !== currentVersion) return false;
+
+    if (
+      currentBaseline &&
+      rowBaseline !== currentBaseline
+    ) {
+      return false;
+    }
+
+    return true;
+  }).sort(function(a, b) {
+    return foA240DateTime_(b.Timestamp) -
+      foA240DateTime_(a.Timestamp);
+  });
+
+  if (compatible.length < 2) {
+    return {
+      status: 'UNAVAILABLE',
+      reason:
+        'No prior compatible Position Risk concentration baseline is available.'
+    };
+  }
+
+  const current = compatible[0];
+  const prior = compatible[1];
+
+  function metric_(name) {
+    const currentValue = Number(current[name]);
+    const priorValue = Number(prior[name]);
+
+    return {
+      current: Number.isFinite(currentValue)
+        ? currentValue
+        : null,
+      prior: Number.isFinite(priorValue)
+        ? priorValue
+        : null,
+      delta: foA240NumericDelta_(
+        Number.isFinite(priorValue) ? priorValue : null,
+        Number.isFinite(currentValue) ? currentValue : null
+      )
+    };
+  }
+
+  return {
+    status: 'AVAILABLE',
+    currentRunId: foA240Text_(current['Run ID']),
+    priorRunId: foA240Text_(prior['Run ID']),
+    largestPosition: metric_('Largest Position %'),
+    top5: metric_('Top 5 %'),
+    sector: metric_('Sector Concentration %'),
+    currency: metric_('Currency Concentration %')
+  };
+}
+
+
 function foA240ResolveProductionBaseline_(run) {
   const runtimeVersion = foA240Text_(
     run && run.platformVersion

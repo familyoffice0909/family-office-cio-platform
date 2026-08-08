@@ -2,12 +2,322 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const packageJson = require('../package.json');
 const packageLock = require('../package-lock.json');
+
+
+describe('foA240ReadConcentrationTrend_', () => {
+  const source = read('WeeklyCioReportA240.js');
+  const context = vm.createContext({ console });
+
+  vm.runInContext(source, context, {
+    filename: 'WeeklyCioReportA240.js'
+  });
+
+  function makeSheet(rows) {
+    return {
+      getLastRow: () => rows.length,
+      getLastColumn: () => rows[0].length,
+      getDataRange: () => ({
+        getValues: () => rows,
+        getDisplayValues: () => rows
+      })
+    };
+  }
+
+  function makeSpreadsheet(rows) {
+    return {
+      getSheetByName: name =>
+        name === 'Risk History' ? makeSheet(rows) : null
+    };
+  }
+
+  const headers = [
+    'Run ID',
+    'Timestamp',
+    'Largest Position %',
+    'Top 5 %',
+    'Sector Concentration %',
+    'Currency Concentration %',
+    'Platform Version',
+    'Baseline'
+  ];
+
+  test('returns current, prior, and concentration deltas for compatible rows', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-1',
+        '2026-08-01T10:00:00Z',
+        '40',
+        '80',
+        '60',
+        '70',
+        'v3.2.12',
+        'CB-002'
+      ],
+      [
+        'RISK-RUN-2',
+        '2026-08-02T10:00:00Z',
+        '45',
+        '82',
+        '61',
+        '72',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('AVAILABLE');
+    expect(result.currentRunId).toBe('RISK-RUN-2');
+    expect(result.priorRunId).toBe('RISK-RUN-1');
+
+    expect(result.largestPosition.current).toBe(45);
+    expect(result.largestPosition.prior).toBe(40);
+    expect(result.largestPosition.delta).toBe(5);
+
+    expect(result.top5.delta).toBe(2);
+    expect(result.sector.delta).toBe(1);
+    expect(result.currency.delta).toBe(2);
+  });
+
+  test('returns unavailable when only one compatible row exists', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-1',
+        '2026-08-01T10:00:00Z',
+        '40',
+        '80',
+        '60',
+        '70',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('UNAVAILABLE');
+  });
+
+  test('ignores incompatible platform version and baseline rows', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-OLD-VERSION',
+        '2026-08-01T10:00:00Z',
+        '30',
+        '70',
+        '50',
+        '60',
+        'v3.2.11',
+        'CB-002'
+      ],
+      [
+        'RISK-RUN-OLD-BASELINE',
+        '2026-08-02T10:00:00Z',
+        '35',
+        '75',
+        '55',
+        '65',
+        'v3.2.12',
+        'CB-001'
+      ],
+      [
+        'RISK-RUN-CURRENT',
+        '2026-08-03T10:00:00Z',
+        '45',
+        '82',
+        '61',
+        '72',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('UNAVAILABLE');
+  });
+});
+
+
+
+
+
+describe('R7.7.D failure classification', () => {
+  test('retrieval contract exposes governed failure classes and never reconstructs', () => {
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'DATA_ACCESS_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'PERSISTENCE_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'VALIDATION_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'GOVERNANCE_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'DELIVERABLE'"
+    );
+
+    expect(weekly).toContain(
+      'No persisted Weekly CIO archive record is available.'
+    );
+
+    expect(weekly).toContain(
+      'Persisted Weekly report rows were not found for the latest archive identity.'
+    );
+
+    expect(weekly).toContain(
+      'No persisted Weekly validation lineage matches the latest archived report.'
+    );
+
+    expect(weekly).toContain(
+      'Weekly validation lineage resolves to multiple Validation Run IDs.'
+    );
+
+    expect(weekly).toContain(
+      'Latest persisted Weekly report has blocking or non-PASS validation evidence.'
+    );
+
+    expect(weekly).toContain(
+      'Weekly report-row lineage does not match the latest archive identity.'
+    );
+
+    expect(weekly).not.toContain(
+      'reconstructWeeklyReport'
+    );
+
+    expect(weekly).not.toContain(
+      'fallbackGeneratedReport'
+    );
+  });
+});
+
+describe('R7.7.C governed retrieval API', () => {
+  test('retrieval is archive-led and verifies persisted report and validation lineage', () => {
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(weekly).toContain(
+      'function foGetLatestGovernedWeeklyReportA240()'
+    );
+    expect(weekly).toContain(
+      "const archive = archiveRows[archiveRows.length - 1]"
+    );
+    expect(weekly).toContain(
+      "row['Report ID']"
+    );
+    expect(weekly).toContain(
+      "row['Decision Run ID']"
+    );
+    expect(weekly).toContain(
+      "row['Validation Run ID']"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'DELIVERABLE'"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'VALIDATION_FAILURE'"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'GOVERNANCE_FAILURE'"
+    );
+  });
+});
+
+describe('R7.7 validation lineage persistence', () => {
+  test('Weekly validation schema persists report and decision lineage', () => {
+    const schemas = read('WorksheetSchemaRegistryA230.js');
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(schemas).toContain(
+      "schemaVersion:'1.1',headers:Object.freeze(['Validation Run ID','Report ID','Decision Run ID','Timestamp'"
+    );
+
+    expect(weekly).toContain('expectedReportId');
+    expect(weekly).toContain('expectedDecisionRunId');
+
+    expect(weekly).toContain(
+      "validationRun.runId,\n        expectedReportId,\n        expectedDecisionRunId,\n        validationRun.timestamp"
+    );
+  });
+});
+
+describe('R7.5 decision history comparison', () => {
+  test('uses compatible prior recommendation and marks unchanged', () => {
+    const current = 'WATCH';
+    const priorDecision = { recommendation: 'WATCH' };
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('WATCH');
+    expect(change).toBe('UNCHANGED');
+  });
+
+  test('uses compatible prior recommendation and marks changed', () => {
+    const current = 'WATCH';
+    const priorDecision = { recommendation: 'HOLD' };
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('HOLD');
+    expect(change).toBe('CHANGED');
+  });
+
+  test('creates baseline when no compatible prior recommendation exists', () => {
+    const current = 'WATCH';
+    const priorDecision = null;
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('');
+    expect(change).toBe('BASELINE CREATED');
+  });
+});
 
 describe('Wave A2.4.0 static integration', () => {
   test('weekly report entry points are present', () => {
